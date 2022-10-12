@@ -1,10 +1,13 @@
 # dendro_core_analysis
-Set of analysis scripts to analyze STARFORGE cores.
+Overview: Set of analysis scripts to analyze STARFORGE cores.
 
+_____________________
 Author: Stella Offner
 
 Code Contributions: Carleen Markey, Mike Grudic
+--------------------
 
+Usage:
 
 Main analysis script: analyze_core_props_v2.py
 
