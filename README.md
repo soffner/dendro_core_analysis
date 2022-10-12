@@ -5,7 +5,7 @@ _____________________
 Author: Stella Offner
 
 Code Contributions: Carleen Markey, Mike Grudic
---------------------
+_____________________
 
 Usage:
 
