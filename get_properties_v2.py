@@ -91,6 +91,7 @@ def load_data(file):
     if 'PartType5' in f.keys():
         partlist = f['PartType5']['Coordinates'][:]
         partmasses = f['PartType5']['Masses'][:]
+        partvels = f['PartType5']['Velocities'][:]
         partids = f['PartType5']['ParticleIDs'][:]
     else:
         partlist = []
@@ -109,13 +110,13 @@ def load_data(file):
     unit_base = {'UnitLength' : unitlen, 'UnitMass': unitmass, 'UnitVel': unitvel, 'UnitB': unitb}
 
     del f
-    return den, x, m, h, u, b, v, t, fmol, fneu, partlist, partmasses, partids, tcgs, unit_base
+    return den, x, m, h, u, b, v, t, fmol, fneu, partlist, partmasses, partvels, partids, tcgs, unit_base
 
 def calc_nh2(den, fmol, fneu, unit_base, helium_mass_fraction=0.284, mh=1.67e-24):
     ## Calculate n_H2
     return unit_base['UnitMass']/unit_base['UnitLength']**3*den*fmol*fneu*(1-helium_mass_fraction)/(2.0*mh)
     
-def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist, partmasses, partvels, partids, veltol=1.73):
+def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist, partmasses, partvels, partids, veltol=1730):
     """ dendro - dendrogram
         den, c, m, h, u, b, v - snapshot density, position, masses, smoothing
              length, magnetic field, velocities
