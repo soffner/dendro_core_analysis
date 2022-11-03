@@ -115,11 +115,12 @@ def calc_nh2(den, fmol, fneu, unit_base, helium_mass_fraction=0.284, mh=1.67e-24
     ## Calculate n_H2
     return unit_base['UnitMass']/unit_base['UnitLength']**3*den*fmol*fneu*(1-helium_mass_fraction)/(2.0*mh)
     
-def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist, partmasses, partids):
+def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist, partmasses, partvels, partids, veltol=1.73):
     """ dendro - dendrogram
         den, c, m, h, u, b, v - snapshot density, position, masses, smoothing
              length, magnetic field, velocities
-        partlist, partmasses, partids - star particle coordines, masses, ids
+        partlist, partmasses, partvels, partids - star particle coordines, masses, velocities, ids
+        veltol -- maximum difference between core bulk velocity and star velocity to be considered protostellar
     """
     ## Return properties of all dendrogram leaves
     ## Note: input/output values are all in code units by default
@@ -204,9 +205,11 @@ def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist,
                     minx = np.array([np.min(x[mask,0]), np.min(x[mask,1]), np.min(x[mask,2])])
                     maxx = np.array([np.max(x[mask,0]), np.max(x[mask,1]), np.max(x[mask,2])])
                     if np.sum(s < maxx) + np.sum(s > minx) == 6:
-                        sinkm.append(partmasses[loc])
-                        sinkids.append(partids[loc])
-                        numsinks += 1
+                        diff = np.sqrt(np.sum((v_bulk - partvels[loc])**2, axis=1))
+                        if diff < veltol:
+                            sinkm.append(partmasses[loc])
+                            sinkids.append(partids[loc])
+                            numsinks += 1
         
             leaf_sink.append(numsinks)  
             leaf_sinkallm.append(sinkm) # code units
