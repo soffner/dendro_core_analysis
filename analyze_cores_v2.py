@@ -32,7 +32,7 @@ for fn in fns: #[12:13]:
     dendro_file = outdir+run+'_snapshot_'+snap+'_min_val1e3.fits' # min_value = 1e3 [cm^-3]
 
     print("Loading data from snapshot %s..." %fn)
-    den, x, m, h, u, b, v, t, fmol, fneu, partlist, partmasses, partids, tcgs,  unit_base = load_data(fn)
+    den, x, m, h, u, b, v, t, fmol, fneu, partlist, partmasses, partvels, partids, tcgs,  unit_base = load_data(fn)
     prop_file=outdir+run+'_snapshot_%1.3f_'%tcgs+snap+'_prop_v2.csv'
     print("Run Time =",tcgs)
 
@@ -49,7 +49,7 @@ for fn in fns: #[12:13]:
 
     print("Computing bulk properties for each leaf ...")
     start = time.time()
-    leaf_masses, leaf_maxden, leaf_centidx, leaf_centpos, leaf_vdisp, leaf_vbulk, leaf_evals, leaf_evecs, leaf_halfmass, leaf_reff, leaf_bmean, leaf_mage, leaf_ke, leaf_grave, leaf_sink, leaf_sinkallm, leaf_sinkallid, leaf_ids, leaf_cs, leaf_keonly = get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snap, partlist, partmasses, partids)
+    leaf_masses, leaf_maxden, leaf_centidx, leaf_centpos, leaf_vdisp, leaf_vbulk, leaf_evals, leaf_evecs, leaf_halfmass, leaf_reff, leaf_bmean, leaf_mage, leaf_ke, leaf_grave, leaf_sink, leaf_sinkallm, leaf_sinkallid, leaf_ids, leaf_cs, leaf_keonly = get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snap, partlist, partmasses, partvels, partids)
     print(" Complete:", (time.time() - start)/60.)
 
     print("Computing profiles, including info outside leaf ...")
