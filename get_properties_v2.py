@@ -97,6 +97,7 @@ def load_data(file):
         partlist = []
         partmasses = [0]
         partids = []
+        partvels = [0, 0, 0]
 
     time = f['Header'].attrs['Time']
     #for att in f['Header'].attrs:
@@ -206,7 +207,8 @@ def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist,
                     minx = np.array([np.min(x[mask,0]), np.min(x[mask,1]), np.min(x[mask,2])])
                     maxx = np.array([np.max(x[mask,0]), np.max(x[mask,1]), np.max(x[mask,2])])
                     if np.sum(s < maxx) + np.sum(s > minx) == 6:
-                        diff = np.sqrt(np.sum((v_bulk - partvels[loc])**2, axis=1))
+                        diff = np.sqrt(np.sum((v_bulk - partvels[loc])**2, axis=0))
+                        print("Vel diff [m/s]= ", diff)
                         if diff < veltol:
                             sinkm.append(partmasses[loc])
                             sinkids.append(partids[loc])

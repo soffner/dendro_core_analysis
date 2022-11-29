@@ -33,7 +33,7 @@ for fn in fns: #[12:13]:
 
     print("Loading data from snapshot %s..." %fn)
     den, x, m, h, u, b, v, t, fmol, fneu, partlist, partmasses, partvels, partids, tcgs,  unit_base = load_data(fn)
-    prop_file=outdir+run+'_snapshot_%1.3f_'%tcgs+snap+'_prop_v2.csv'
+    prop_file=outdir+run+'_snapshot_%1.3f_'%tcgs+snap+'_prop_v3.csv'
     print("Run Time =",tcgs)
 
     print("Calculating nH2...")
