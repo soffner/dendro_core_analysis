@@ -357,10 +357,6 @@ def calc_profiles_slow(dendro, nh2, x, v, nbin, maxsize=0.5, plotleaf=False, sav
     allden = []   # Store all relevant densities if saveall=True
     allradii = [] # Store all relevant radii if saveall=True
 
-    xvel = v[:,0]
-    yvel = v[:,1]
-    zvel = v[:,1]
-
     # Loop over each leaf
     for i in range(loop_length): #get leaf, find profiles
         
