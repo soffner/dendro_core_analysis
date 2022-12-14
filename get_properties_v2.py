@@ -117,38 +117,40 @@ def calc_nh2(den, fmol, fneu, unit_base, helium_mass_fraction=0.284, mh=1.67e-24
     ## Calculate n_H2
     return unit_base['UnitMass']/unit_base['UnitLength']**3*den*fmol*fneu*(1-helium_mass_fraction)/(2.0*mh)
     
-def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist, partmasses, partvels, partids, veltol=1730):
+def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist, partmasses, partvels, partids, veltol=1730, postol=0.043):
     """ dendro - dendrogram
         den, c, m, h, u, b, v - snapshot density, position, masses, smoothing
              length, magnetic field, velocities
         partlist, partmasses, partvels, partids - star particle coordines, masses, velocities, ids
-        veltol -- maximum difference between core bulk velocity and star velocity to be considered protostellar
+        veltol -- maximum difference between core bulk velocity and star velocity to save sinks
+        postol -- maximum difference between density maximum and star position to count as protostellar
     """
     ## Return properties of all dendrogram leaves
     ## Note: input/output values are all in code units by default
 
     # Initialize data arrays
-    leaf_masses = [] #done
-    leaf_maxden = [] #done
-    leaf_centidx = [] #done
-    leaf_centpos = [] #done
-    leaf_vdisp = []   #d 
-    leaf_vbulk = []   #d
-    leaf_evals = []   #d
-    leaf_evecs = []   #d
-    leaf_halfmass = [] #d
-    leaf_reff = []  #d
-    leaf_bmean = [] #d
-    leaf_mage = []  #d
-    leaf_ke = []    #d  
-    leaf_grave = [] #d
-    leaf_sink = []   #d
-    leaf_sinkallm = [] #d
-    leaf_sinkallid = [] #d
-    leaf_id = []  #d
-    leaf_cs = []   # Mass-wieghted temperature
-    leaf_keonly = [] #com KE without thermal component
-    csconst = 0.188e3 #T=10 K [m/s]
+    leaf_masses = [] 
+    leaf_maxden = [] 
+    leaf_centidx = [] 
+    leaf_centpos = [] 
+    leaf_vdisp = []    
+    leaf_vbulk = []   
+    leaf_evals = []   
+    leaf_evecs = []   
+    leaf_halfmass = [] 
+    leaf_reff = []  
+    leaf_bmean = [] 
+    leaf_mage = []  
+    leaf_ke = []      
+    leaf_grave = [] 
+    leaf_sink = []   
+    leaf_sinkallm = [] 
+    leaf_sinkallid = [] 
+    leaf_protostellar = []
+    leaf_id = []  
+    leaf_cs = []      # Mass-wieghted temperature
+    leaf_keonly = []  # COM KE without thermal component
+    csconst = 0.188e3 # T=10 K [m/s], currently not used
     kb = 1.38e-16
     mh = 1.67e-24
 
@@ -199,29 +201,39 @@ def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist,
             leaf_bmean.append(np.sqrt(np.average(b[mask,:]*b[mask,:], weights=m[mask],axis=0))) #*unit_base["UnitMagneticField_in_gauss"]
             leaf_mage.append(BE(m[mask], b[mask], den[mask])) #code units
             
+            # Statistics for sinks contained within the leaf boundary
             sinkm = []
             sinkids = []
             numsinks = 0
+            numproto = 0        
             if np.any(partlist):
                 for loc, s in enumerate(partlist):
                     minx = np.array([np.min(x[mask,0]), np.min(x[mask,1]), np.min(x[mask,2])])
                     maxx = np.array([np.max(x[mask,0]), np.max(x[mask,1]), np.max(x[mask,2])])
                     if np.sum(s < maxx) + np.sum(s > minx) == 6:
-                        diff = np.sqrt(np.sum((v_bulk - partvels[loc])**2, axis=0))
-                        print("Vel diff [m/s]= ", diff)
-                        if diff < veltol:
+                        diffv = np.sqrt(np.sum((v_bulk - partvels[loc])**2, axis=0))
+                        # Velocity difference check
+                        #print("Vel diff [m/s]= ", diffv)
+                        if diffv < veltol:
                             sinkm.append(partmasses[loc])
                             sinkids.append(partids[loc])
                             numsinks += 1
+                        # Spatial position relative to peak density
+                        diffp = np.sqrt(np.sum((x[idx]- partlist[loc])**2, axis=0))
+                        print("Diff p =", diffp, x[idx], x[idx]-partlist[loc])
+                        if diffp < postol:
+                           numproto += 1
+                    
         
-            leaf_sink.append(numsinks)  
-            leaf_sinkallm.append(sinkm) # code units
-            leaf_sinkallid.append(sinkids) # code units
+            leaf_sink.append(numsinks)  # N sink inside core boundary
+            leaf_sinkallm.append(sinkm) # Save sink masses
+            leaf_sinkallid.append(sinkids) # Keep sink ids
+            leaf_protostellar.append(numproto) # N sink close to density peak
         
     print("Need to add temperature calculation, update cs")
 
     # leaf_centidx
-    return leaf_masses, leaf_maxden, leaf_centidx, leaf_centpos, leaf_vdisp, leaf_vbulk, leaf_evals, leaf_evecs, leaf_halfmass, leaf_reff, leaf_bmean, leaf_mage, leaf_ke, leaf_grave, leaf_sink, leaf_sinkallm, leaf_sinkallid, leaf_id, leaf_cs, leaf_keonly
+    return leaf_masses, leaf_maxden, leaf_centidx, leaf_centpos, leaf_vdisp, leaf_vbulk, leaf_evals, leaf_evecs, leaf_halfmass, leaf_reff, leaf_bmean, leaf_mage, leaf_ke, leaf_grave, leaf_sink, leaf_sinkallm, leaf_sinkallid, leaf_protostellar, leaf_id, leaf_cs, leaf_keonly
     
 def load_dendrogram(dendro_file, nh2, x, num):
     """  dendro_file - dendrogram location saved or to save
