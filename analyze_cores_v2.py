@@ -25,7 +25,7 @@ maxsize = 0.5 # Max size used to construct profile (code units)
 fns = glob.glob(dir+'snapshot_*0.hdf5')
 fns.sort()
 
-for fn in fns[10:17]:
+for fn in fns:
     
     snap = fn[-8:-5] # File number
     #file = dir+snap # Input file
@@ -49,7 +49,7 @@ for fn in fns[10:17]:
 
     print("Computing bulk properties for each leaf ...")
     start = time.time()
-    leaf_masses, leaf_maxden, leaf_centidx, leaf_centpos, leaf_vdisp, leaf_vbulk, leaf_evals, leaf_evecs, leaf_halfmass, leaf_reff, leaf_bmean, leaf_mage, leaf_ke, leaf_grave, leaf_sink, leaf_sinkallm, leaf_sinkallid, leaf_protostellar, leaf_ids, leaf_cs, leaf_keonly = get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snap, partlist, partmasses, partvels, partids)
+    leaf_masses, leaf_maxden, leaf_centidx, leaf_centpos, leaf_vdisp, leaf_vbulk, leaf_shape, leaf_halfmass, leaf_reff, leaf_bmean, leaf_mage, leaf_ke, leaf_grave, leaf_sink, leaf_sinkallm, leaf_sinkallid, leaf_protostellar, leaf_ids, leaf_cs, leaf_keonly = get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snap, partlist, partmasses, partvels, partids)
     print(" Complete:", (time.time() - start)/60.)
 
     print("Computing profiles, including info outside leaf ...")
@@ -66,7 +66,7 @@ for fn in fns[10:17]:
 
     print("Combining and saving information in %s ..." %prop_file)
     leaf_count = len(leaf_masses) # Here just one snapshot
-    combined_all = np.empty(shape=(leaf_count,24), dtype=object)
+    combined_all = np.empty(shape=(leaf_count,23), dtype=object)
     for leaf in range(leaf_count):
         combined_all[leaf][0] = leaf_ids[leaf] #
         combined_all[leaf][1] = i_density_interp[leaf]    # interpolated log density
@@ -83,15 +83,14 @@ for fn in fns[10:17]:
         combined_all[leaf][12] = leaf_grave[leaf]*unit_base['UnitMass']*unit_base['UnitVel']**2
         combined_all[leaf][13] = leaf_sink[leaf]
         combined_all[leaf][14] = leaf_maxden[leaf]
-        combined_all[leaf][15] = leaf_evals[leaf]
-        combined_all[leaf][16] = leaf_evecs[leaf]
-        combined_all[leaf][17] = leaf_halfmass[leaf]
-        combined_all[leaf][18] = leaf_bmean[leaf]*unit_base['UnitB']
-        combined_all[leaf][19] = leaf_mage[leaf]*unit_base['UnitB']**2*unit_base['UnitLength']**3
-        combined_all[leaf][20] = leaf_sinkallm[leaf]
-        combined_all[leaf][21] = leaf_cs[leaf]
-        combined_all[leaf][22] = leaf_keonly[leaf]
-        combined_all[leaf][23] = leaf_protostellar[leaf]
+        combined_all[leaf][15] = leaf_shape[leaf]
+        combined_all[leaf][16] = leaf_halfmass[leaf]
+        combined_all[leaf][17] = leaf_bmean[leaf]*unit_base['UnitB']
+        combined_all[leaf][18] = leaf_mage[leaf]*unit_base['UnitB']**2*unit_base['UnitLength']**3
+        combined_all[leaf][19] = leaf_sinkallm[leaf]
+        combined_all[leaf][20] = leaf_cs[leaf]
+        combined_all[leaf][21] = leaf_keonly[leaf]
+        combined_all[leaf][22] = leaf_protostellar[leaf]
 
     np.set_printoptions(threshold=sys.maxsize)
     save_df = pd.DataFrame(combined_all, columns = ['ID','Density [cm^-3]','Dispersion [cm/s]',
@@ -100,8 +99,8 @@ for fn in fns[10:17]:
                                                 'DensityIndex','V Bulk [cm/s]',
                                                 'Center Position [pc]','Center index','LeafKe',
                                                  'LeafGrav', 'Num. Sinks',
-                                                'Max Den [cm^-3]', 'Eigenvals [pc]',
-                                                'Eigenvecs', 'Half Mass R[pc]', 'Mean B [G]',
+                                                'Max Den [cm^-3]', 'Shape [pc]',
+                                                'Half Mass R[pc]', 'Mean B [G]',
                                                 'Mag. Energy', 'Sink Masses [Msun]',
                                                     'Sound speed [cm/s]', 'LeafKe only', 'Protostellar'])
     print("Saving cores in ", prop_file)

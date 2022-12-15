@@ -65,13 +65,23 @@ def PE(xc, mc, hc):
     phic = pytreegrav.Potential(xc, mc, hc, G=4.301e4, theta=0.7) # G in code units
     return 0.5*(phic*mc).sum()
 
-def Get_Shape(dxc):
+def get_evals(dxc):
     """ dxc - distance from center (density max) position 
     """
-    ## Return shape               
+    ## Return eigenvalues and eigenvectors               
     evals, evecs = np.linalg.eig(np.cov(dxc.T)) # This seems very slow ...
     sort_mask = np.argsort(-evals)
     return evals[sort_mask],evecs[sort_mask]
+
+def get_shape(dxc):
+    """ dxc - distance from center (density max) position 
+    """
+    ## Return length of principle axes               
+    evals, evecs = np.linalg.eig(np.cov(dxc.T)) # This seems very slow ...
+    shape = np.array([np.max(evecs[0].T*dxc)-np.min(evecs[0].T*dxc),
+                      np.max(evecs[1].T*dxc)-np.min(evecs[1].T*dxc),
+                      np.max(evecs[2].T*dxc)-np.min(evecs[2].T*dxc)])              
+    return shape.sort()
 
 def load_data(file):
     # Load snapshot data
@@ -135,8 +145,7 @@ def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist,
     leaf_centpos = [] 
     leaf_vdisp = []    
     leaf_vbulk = []   
-    leaf_evals = []   
-    leaf_evecs = []   
+    leaf_shape = []   
     leaf_halfmass = [] 
     leaf_reff = []  
     leaf_bmean = [] 
@@ -170,9 +179,8 @@ def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist,
             # Get size information
             dx = x[mask]-x[idx]
            
-            evals, evecs = Get_Shape(dx)
-            leaf_evals.append(evals)
-            leaf_evecs.append(evecs)
+            shape = get_shape(dx)
+            leaf_shape.append(shape)
                   
             r = np.sqrt(np.sum(dx**2,axis=1)) # code units [pc]
             leaf_halfmass.append(np.median(r)) # code units [pc]
@@ -233,7 +241,7 @@ def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist,
     print("Need to add temperature calculation, update cs")
 
     # leaf_centidx
-    return leaf_masses, leaf_maxden, leaf_centidx, leaf_centpos, leaf_vdisp, leaf_vbulk, leaf_evals, leaf_evecs, leaf_halfmass, leaf_reff, leaf_bmean, leaf_mage, leaf_ke, leaf_grave, leaf_sink, leaf_sinkallm, leaf_sinkallid, leaf_protostellar, leaf_id, leaf_cs, leaf_keonly
+    return leaf_masses, leaf_maxden, leaf_centidx, leaf_centpos, leaf_vdisp, leaf_vbulk, leaf_shape, leaf_halfmass, leaf_reff, leaf_bmean, leaf_mage, leaf_ke, leaf_grave, leaf_sink, leaf_sinkallm, leaf_sinkallid, leaf_protostellar, leaf_id, leaf_cs, leaf_keonly
     
 def load_dendrogram(dendro_file, nh2, x, num):
     """  dendro_file - dendrogram location saved or to save
@@ -275,7 +283,7 @@ def calc_profiles(dendro, nh2, x, v, nbin, num, maxsize=0.5, plotleaf=False, sav
     """
     dendro - leaf structure
     nh2  -  derived number density (cgs)
-    x, v, evals - semi-major axes, pos, vel (code units)
+    x, v, shape - pos,vel, semi-major axes length (code units)
     maxsize - max size for profile (code units)
     plotleaf - make a plot of each leaf
     saveall - save all the densities included in the profile for debugging
