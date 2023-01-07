@@ -6,34 +6,35 @@ import glob
 import matplotlib
 matplotlib.use('Agg')
 
-#file = 'M2e3_mid'
-#snap = '400' # Temporary file number
-
+# Location of STARFORGE outputs
 dir  = '/scratch3/03532/mgrudic/STARFORGE_RT/production2/M2e3_R3/M2e3_R3_S0_T1_B0.01_Res126_n2_sol0.5_42/output/'
+
+# Run name
 run = 'M2e3_R3_S0-T1_B0.01_Res126_n2_sol0.5_42'
 outdir = './'
 
-nbin = 10.0
-nbin = np.logspace(3.5,5.5, 10)  # n_H2 number density cuts for profiles
-maxsize = 0.5 # Max size used to construct profile (code units)
+nbin = np.logspace(3.5,7.0, 20)  # n_H2 number density cuts for profiles
+maxsize = 0.4 # Max size used to construct profile (code units)
+
+res_limit = 1e-3 # Only consider cells with masses at or above min resolution
 
 #unit_base = {'UnitMagneticField_in_gauss':  1e+4,
 #             'UnitLength_in_cm'         : 3.08568e+18,
 #             'UnitMass_in_g'            :   1.989e+33,
 #             'UnitVelocity_in_cm_per_s' :      100}
 
-fns = glob.glob(dir+'snapshot_*0.hdf5')
+fns = glob.glob(dir+'snapshot_*.hdf5')
 fns.sort()
 
 for fn in fns:
     
     snap = fn[-8:-5] # File number
     #file = dir+snap # Input file
-    dendro_file = outdir+run+'_snapshot_'+snap+'_min_val1e3.fits' # min_value = 1e3 [cm^-3]
+    dendro_file = outdir+run+'_snapshot_'+snap+'_min_val1e3_res1e-3.fits' # min_value = 1e3 [cm^-3]
 
     print("Loading data from snapshot %s..." %fn)
-    den, x, m, h, u, b, v, t, fmol, fneu, partlist, partmasses, partvels, partids, tcgs,  unit_base = load_data(fn)
-    prop_file=outdir+run+'_snapshot_%1.3f_'%tcgs+snap+'_prop_v4.csv'
+    den, x, m, h, u, b, v, t, fmol, fneu, partlist, partmasses, partvels, partids, tcgs,  unit_base = load_data(fn, res_limit=res_limit)
+    prop_file=outdir+run+'_snapshot_%1.3f_'%tcgs+snap+'_prop_v6.csv'
     print("Run Time =",tcgs)
 
     print("Calculating nH2...")
@@ -61,7 +62,7 @@ for fn in fns:
 
     print("Interpolating profiles onto a common grid, fiting for rho powerlaw index, determining radius of coherence...")
     start = time.time()
-    i_density_interp, i_veldisp_interp, size_grid, leaf_rcoh, leaf_rpow = interpolate_profiles(nbin, veldisp, radii, leaf_cs, snap)
+    i_density_interp, i_veldisp_interp, size_grid, leaf_rcoh, leaf_rpow = interpolate_profiles(nbin, veldisp, radii, leaf_cs, snap, maxsize=maxsize)
     print(" Complete:", (time.time() - start)/60.)
 
     print("Combining and saving information in %s ..." %prop_file)

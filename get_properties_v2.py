@@ -21,7 +21,6 @@ import time
 import copy as cp
 import pytreegrav
 
-
 def KE(xc, mc, vc, uc): 
     """ xc - array of positions 
         mc - array of masses 
@@ -81,21 +80,30 @@ def get_shape(dxc):
     shape = np.array([np.max(evecs[0].T*dxc)-np.min(evecs[0].T*dxc),
                       np.max(evecs[1].T*dxc)-np.min(evecs[1].T*dxc),
                       np.max(evecs[2].T*dxc)-np.min(evecs[2].T*dxc)])              
-    return shape.sort()
+    shape.sort()
+    return shape
 
-def load_data(file):
+def load_data(file, res_limit = 0.0):
+
     # Load snapshot data
     f = h5py.File(file, 'r')
-    den = f['PartType0']['Density'][:] #* unit_base['UnitMass_in_g'] / unit_base['UnitLength_in_cm']**3 # Need to remember to convert to match dendro
-    x = f['PartType0']['Coordinates'][:] # * unit_base['UnitLength_in_cm'] # [pc]
-    m = f['PartType0']['Masses'][:] # * unit_base['UnitMass_in_g'] # [Msun]
-    h = f['PartType0']['SmoothingLength'][:]
-    u = f['PartType0']['InternalEnergy'][:]
-    b = f['PartType0']['MagneticField'][:]
-    fmol = f['PartType0']['MolecularMassFraction'][:]
-    fneu = f['PartType0']['NeutralHydrogenAbundance'][:]
-    t = f['PartType0']['Temperature'][:]
-    v = f['PartType0']['Velocities']
+
+    # Mask to remove any cells with mass below some value 
+    # (e.g., such as feedback cells) 
+    mask = (f['PartType0']['Masses'][:] >= res_limit*0.999)
+
+    den = f['PartType0']['Density'][:]*mask #* unit_base['UnitMass_in_g'] / unit_base['UnitLength_in_cm']**3 # Need to remember to convert to match dendro
+    mask3d = np.array([mask, mask, mask]).T
+    x = f['PartType0']['Coordinates']*mask3d
+# * unit_base['UnitLength_in_cm'] # [pc]
+    m = f['PartType0']['Masses'][:]*mask # * unit_base['UnitMass_in_g'] # [Msun]
+    h = f['PartType0']['SmoothingLength'][:]*mask
+    u = f['PartType0']['InternalEnergy'][:]*mask
+    b = f['PartType0']['MagneticField'][:]*mask3d
+    fmol = f['PartType0']['MolecularMassFraction'][:]*mask
+    fneu = f['PartType0']['NeutralHydrogenAbundance'][:]*mask
+    t = f['PartType0']['Temperature'][:]*mask
+    v = f['PartType0']['Velocities']*mask3d
     print("Max/min temp =", np.max(t), np.min(t))
   
     if 'PartType5' in f.keys():
@@ -228,7 +236,7 @@ def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist,
                             numsinks += 1
                         # Spatial position relative to peak density
                         diffp = np.sqrt(np.sum((x[idx]- partlist[loc])**2, axis=0))
-                        print("Diff p =", diffp, x[idx], x[idx]-partlist[loc])
+                        #print("Diff p =", diffp, x[idx], x[idx]-partlist[loc])
                         if diffp < postol:
                            numproto += 1
                     
@@ -238,9 +246,6 @@ def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist,
             leaf_sinkallid.append(sinkids) # Keep sink ids
             leaf_protostellar.append(numproto) # N sink close to density peak
         
-    print("Need to add temperature calculation, update cs")
-
-    # leaf_centidx
     return leaf_masses, leaf_maxden, leaf_centidx, leaf_centpos, leaf_vdisp, leaf_vbulk, leaf_shape, leaf_halfmass, leaf_reff, leaf_bmean, leaf_mage, leaf_ke, leaf_grave, leaf_sink, leaf_sinkallm, leaf_sinkallid, leaf_protostellar, leaf_id, leaf_cs, leaf_keonly
     
 def load_dendrogram(dendro_file, nh2, x, num):
@@ -318,7 +323,7 @@ def calc_profiles(dendro, nh2, x, v, nbin, num, maxsize=0.5, plotleaf=False, sav
 
         dx = x-x[center]   #location of peak in indicy
         r = np.sqrt(np.sum(dx**2, axis=1))
-        masksz = (r < 0.5) 
+        masksz = (r < maxsize) 
         
         # cap all other densities at minimum of target leaf
         leaf_nh2 = cp.deepcopy(nh2)
@@ -401,7 +406,7 @@ def calc_profiles_slow(dendro, nh2, x, v, nbin, maxsize=0.5, plotleaf=False, sav
 
         leaf_nh2 = cp.deepcopy(nh2)
         # Impt: cap all other densities above this leaf mindensity
-        leaf_nh2[leaf_nh2 > minleaf] = minleaf 
+        leaf_nh2[leaf_nh2 > minleaf] = 0.0 # minleaf, 0 = mask out 
         leaf_nh2[mask] = nh2[mask]
         
         # loop through ancestral substructures to identify masked coordinates
@@ -470,7 +475,7 @@ def calc_profiles_slow(dendro, nh2, x, v, nbin, maxsize=0.5, plotleaf=False, sav
     return veldisp, radii_eq, n_part, allden, allradii
 
 
-def interpolate_profiles(nbin, veldisp, radii, leaf_cs, num):
+def interpolate_profiles(nbin, veldisp, radii, leaf_cs, num, maxsize=0.5):
     """ nbin - array of number densities (n_h2)
         veldisp - velocity dispersion profiles
         radii - radii profiles
@@ -481,7 +486,7 @@ def interpolate_profiles(nbin, veldisp, radii, leaf_cs, num):
 
     # grid used for the interpolation of density, vdisp profiles
     # Changed from Offner et al. 2022, since STARFORGE cores tend to be more compact and denser
-    size_grid = np.log10(np.logspace(np.log10(2e-3), np.log10(2e-1), 20))
+    size_grid = np.log10(np.logspace(np.log10(2e-3), np.log10(maxsize/2.0), len(nbin)))
     i_density_interp = []
     i_veldisp_interp = []
     leaf_rpow = []
@@ -493,17 +498,29 @@ def interpolate_profiles(nbin, veldisp, radii, leaf_cs, num):
         veldisp[i][::-1][veldisp[i][::-1]<1] = 0
         i_veldisp = np.log10(veldisp[i][::-1]) #Convert to km/s
         mask_clean = np.isfinite(i_size)&np.isfinite(i_density)&np.isfinite(i_veldisp)
-        i_density_interp.append(np.interp(size_grid, i_size[mask_clean], i_density[mask_clean]))
-        i_veldisp_interp.append(np.interp(size_grid, i_size[mask_clean], i_veldisp[mask_clean]))
+        sortind = i_size[mask_clean].argsort()
+        i_density_interp.append(np.interp(size_grid, (i_size[mask_clean]), (i_density[mask_clean])))
+        #print(" ?", i_size[mask_clean])
+        i_veldisp_interp.append(np.interp(size_grid, (i_size[mask_clean]), (i_veldisp[mask_clean])))
         idx = np.where(np.array(i_veldisp_interp[i]) < np.log10(leaf_cs[i]))[0] 
         if idx.size > 0: 
             leaf_rcoh.append(10**size_grid[np.max(idx)])
         else:
             leaf_rcoh.append(0.0)
 
-        # fit inside 0.025 pc
-        poly = np.polyfit(size_grid[:-9],i_density_interp[i][:-9], 1, rcond=None, full=False, w=None, cov=False) #1 = Degree of fit
-        leaf_rpow.append(poly[0])
+        # fit the profile: ~0.03 -0.1
+        #poly = np.polyfit(size_grid[2:17],i_density_interp[i][2:17], 1, rcond=None, full=False, w=None, cov=False) #1 = Degree of fit
+
+        # Fit the raw data and only where it's defined
+        rtmp = i_size[mask_clean]
+        rhotmp = i_density[mask_clean]
+        
+        ind = np.logical_and(rtmp > np.log10(0.0025), rtmp < np.log10(0.1))
+        if len(rtmp[ind]) > 2:
+            poly = np.polyfit(rtmp[ind], rhotmp[ind], 1, rcond=None, full=False, w=None, cov=False)
+            leaf_rpow.append(np.min([0.0, poly[0]]))
+        else:
+            leaf_rpow.append(0.0)
 
     # Plot interpolated profiles
     fig, ax = plt.subplots()
@@ -512,7 +529,7 @@ def interpolate_profiles(nbin, veldisp, radii, leaf_cs, num):
 
     ax.set_yscale('log')
     ax.set_xscale('log')
-    ax.set_xlim([0.001, 2e-1])
+    ax.set_xlim([0.001, maxsize/2.0])
     plt.savefig("Interpolated_Densities_"+num+".png")
 
 
@@ -521,10 +538,10 @@ def interpolate_profiles(nbin, veldisp, radii, leaf_cs, num):
     for i in range(len(leaf_cs)):
         ax.plot(10**size_grid, 10**i_veldisp_interp[i], alpha=0.1)
 
-    ax.plot(np.array([1e-3,0.5]),np.array([0.188e3, 0.188e3]), color='black')                
+    ax.plot(np.array([1e-3,maxsize/2.0]),np.array([0.188e3, 0.188e3]), color='black')                
     ax.set_yscale('log')
     ax.set_xscale('log')
     ax.set_xlim([0.001, 2e-1])
-    plt.savefig("Interpolated_veldisp"+num+".png")
+    plt.savefig("Interpolated_veldisp_"+num+".png")
 
     return i_density_interp, i_veldisp_interp, size_grid, leaf_rcoh, leaf_rpow
