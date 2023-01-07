@@ -7,19 +7,20 @@ import sys
 import gc as gc
 
 # Load only particle ids
-def load_data_ids(file):
+def load_data_ids(file, res_limit = 0.0):
     # Load snapshot data
     f = h5py.File(file, 'r')
-    ids = f['PartType0']['ParticleIDs'][:]
+    mask = (f['PartType0']['Masses'][:] >= res_limit*0.999)
+    ids = f['PartType0']['ParticleIDs'][:]*mask
     return ids
 
-
 # Load only coordinates and densities
-def load_pos_den(file):
+def load_pos_den(file, res_limit=0.0):
     # Load snapshot data
     f = h5py.File(file, 'r')
-    x = f['PartType0']['Coordinates'][:]
-    den = f['PartType0']['Density'][:]
+    mask = (f['PartType0']['Masses'][:] >= res_limit*0.999)
+    x = f['PartType0']['Coordinates'][:]*mask
+    den = f['PartType0']['Density'][:]*mask
     return x, den
 
 def load_star_pos_mass(file):
@@ -34,16 +35,19 @@ def load_star_pos_mass(file):
 
 
 #create leaf histories
-def create_leaf_history(fns,run): #, ntimes, time_file):
+def create_leaf_history(fns,run,res_limit=0.0): #, ntimes, time_file):
     leaf_histories = []
     tree = []
     nhist = 0
+    merge_histories = []
+    nodes_edges = []
+    nsplits = 0
 
     # Load first snapshot
     snap = fns[0][-8:-5]
     dendro_file = run+'_snapshot_'+snap+'_min_val1e3.fits' 
     dendro = Dendrogram.load_from(dendro_file)
-    ids = load_data_ids(fns[0])
+    ids = load_data_ids(fns[0], res_limit=res_limit)
     print("*** Starting from snapshot ", snap)
 
     # Loop through snapshots
@@ -51,7 +55,7 @@ def create_leaf_history(fns,run): #, ntimes, time_file):
         next_snap = fns[j+1][-8:-5]
         next_dendro_file = run+'_snapshot_'+next_snap+'_min_val1e3.fits' 
         next_dendro = Dendrogram.load_from(next_dendro_file)
-        next_ids = load_data_ids(fns[j+1])
+        next_ids = load_data_ids(fns[j+1],res_limit=res_limit)
         print(" --- ", next_snap)
 
         leaves = dendro.leaves
@@ -68,13 +72,16 @@ def create_leaf_history(fns,run): #, ntimes, time_file):
         # Store ids of particles in each leaf
         next_leaves_indices = np.zeros(shape=(sz_next_leaves,), dtype=np.ndarray)
         # Whether leaf at next snapshot has a match with the current one
-        # Increment by 1 for each match
-        matched = np.zeros(sz_next_leaves)
+        # Increment by 1 for each match found
+        matched = np.zeros(len(next_leaves))
+        matched_ind = []
 
         for m,leaf in enumerate(next_leaves):
             # Get the ids of the particles in this leaf 
             indices = next_ids[leaf.get_mask()]
             next_leaves_indices[m] = indices
+            matched_ind.append([str("%05i"%(int(next_snap))) + str(leaf.idx)]) #First one will be this leaf's index 
+            
 
         # Get location of current leaf in the leaf_history
         for leaf in leaves:
@@ -111,20 +118,26 @@ def create_leaf_history(fns,run): #, ntimes, time_file):
             
             # Add to end of appropriate row
             if len(match_ind) > 0:
+                for i in match_ind:
+                    nodes_edges.append([str("%05i"%(int(snap)))+str(leaf.idx), str("%05i"%(int(next_snap)))+str(next_leaves[i].idx)])
                 print('Match found for leaf ', leaf.idx, fraction_leaf[match_ind], fraction_nextleaf[match_ind], match_ind)
                 # Add to the appropriate row
                 match = match_ind[0]
                 matched_next_leaf = next_leaves[match].idx
                 matched[match] += 1
+                # Append row in leaf history rather than the leaf it matches with
+                matched_ind[match].append(matched_history[0])#str("%05i"%(int(snap))) + str(leaf.idx))
                 matched_hist_index = matched_history[0]
+                tmphist = leaf_histories[matched_hist_index].copy() # Store in case of split (below)
                 leaf_histories[matched_hist_index].append(str("%05i"%(int(next_snap)))+str(matched_next_leaf))
 
                 if len(match_ind)>1:
-                    tmphist = leaf_histories[matched_hist_index].copy() # Store in case of split (below)
                     print(" "+str(len(match_ind))+" splits found at ",str("%05i"%(int(snap)))+str(leaf.idx))
                     tree[matched_hist_index].append("s"+str("%05i"%(int(snap)))+str(leaf.idx))
                     for i in match_ind[1:]:
                         matched[i] += 1
+                        matched_ind[i].append(len(leaf_histories))#str("%05i"%(int(snap))) + str(leaf.idx))
+
                         print("... matching with next leaf %i" %next_leaves[i].idx)
                         matched_next_leaf = next_leaves[i].idx
                         split = tmphist.copy()
@@ -133,12 +146,12 @@ def create_leaf_history(fns,run): #, ntimes, time_file):
                         leaf_histories.append(split)
                         nhist+=1
                         tree.append([matched_hist_index, "s"+str("%05i"%(int(snap)))+str(leaf.idx)])
+                        nsplits += 1
             else:
                 print('No match found for leaf ', leaf.idx, fraction_leaf[match_ind], fraction_nextleaf[match_ind], match_ind)
 
         # Put remaining unmatched leaves in a new row
         unmatched = np.where(matched == 0)[0]
-        print(" Final splits/mergers = ", np.where(matched > 1)[0])
         if unmatched.any():
             for item_idx in unmatched:
                 if overlap[item_idx]> 0:
@@ -147,6 +160,15 @@ def create_leaf_history(fns,run): #, ntimes, time_file):
                 tree.append([nhist])
                 nhist+=1
 
+        # Get the number of mergers and splits
+        mergers = np.where(matched >1)[0]
+        print(" Number of merges = ", len(mergers))
+        print(" Number of splits = %i (nleaves: %i, nhist-nleaves: %i)" %(nsplits, len(leaves), nhist-len(leaves))) 
+        for i in mergers: 
+            print("  merged: = ",  matched_ind[i]) # These should all have at least three entries (first one is merged leaf, the second two are the current leaves matched to it)
+            merge_histories.append(matched_ind[i])
+        
+        #print(" leaf matches =", [matched_ind[i] for i in np.where(matched >1)[0])
                 
         dendro = next_dendro
         ids = next_ids
@@ -155,7 +177,7 @@ def create_leaf_history(fns,run): #, ntimes, time_file):
         del next_ids
         gc.collect()
 
-    return leaf_histories, tree
+    return leaf_histories, tree, merge_histories, nodes_edges
 
 
 # Read in the file
@@ -178,7 +200,7 @@ def plot_leaves(fns, run):
         dendro_file = run+'_snapshot_'+snap+'_min_val1e3.fits' 
         dendro = Dendrogram.load_from(dendro_file)
 
-        x,den = load_pos_den(fns[i])
+        x,den = load_pos_den(fns[i],res_limit=res_limit)
         fig,ax = plt.subplots()
         ax.scatter(x[:,0], x[:,1], alpha=0.01,s=1)
         leaves = dendro.leaves
