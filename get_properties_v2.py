@@ -208,7 +208,7 @@ def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist,
             leaf_keonly.append((m[mask]*(vSqr/2 + u[mask])).sum()) # code units [Msun m^2/s^2]
             
             # Get temperature          
-            cs = np.sqrt(kb*np.sum(m[mask]*t[mask])/mass/(2.33*mh))/1e2
+            cs = np.sqrt(kb*np.sum(m[mask]*t[mask])/mass/(2.33*mh))/1e5
             #leaf_cs.append(csconst) #cg
             leaf_cs.append(cs)             
      
