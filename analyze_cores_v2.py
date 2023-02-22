@@ -34,7 +34,7 @@ for fn in fns:
 
     print("Loading data from snapshot %s..." %fn)
     den, x, m, h, u, b, v, t, fmol, fneu, partlist, partmasses, partvels, partids, tcgs,  unit_base = load_data(fn, res_limit=res_limit)
-    prop_file=outdir+run+'_snapshot_%1.3f_'%tcgs+snap+'_prop_v6.csv'
+    prop_file=outdir+run+'_snapshot_%1.3f_'%tcgs+snap+'_prop_v7.csv'
     print("Run Time =",tcgs)
 
     print("Calculating nH2...")
@@ -89,7 +89,7 @@ for fn in fns:
         combined_all[leaf][17] = leaf_bmean[leaf]*unit_base['UnitB']
         combined_all[leaf][18] = leaf_mage[leaf]*unit_base['UnitB']**2*unit_base['UnitLength']**3
         combined_all[leaf][19] = leaf_sinkallm[leaf]
-        combined_all[leaf][20] = leaf_cs[leaf]
+        combined_all[leaf][20] = leaf_cs[leaf]*unit_base['UnitVel']
         combined_all[leaf][21] = leaf_keonly[leaf]
         combined_all[leaf][22] = leaf_protostellar[leaf]
 

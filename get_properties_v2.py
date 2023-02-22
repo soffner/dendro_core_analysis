@@ -169,8 +169,8 @@ def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist,
     leaf_cs = []      # Mass-wieghted temperature
     leaf_keonly = []  # COM KE without thermal component
     csconst = 0.188e3 # T=10 K [m/s], currently not used
-    kb = 1.38e-16
-    mh = 1.67e-24
+    kb = 1.38e-23 # mks
+    mh = 1.67e-27 # mks
 
     # Loop through all leaves in the dendrogram
     for leaf in dendro:
@@ -209,7 +209,7 @@ def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist,
             leaf_keonly.append((m[mask]*(vSqr/2)).sum()) # code units [Msun m^2/s^2]
             
             # Get temperature          
-            cs = np.sqrt(kb*np.sum(m[mask]*t[mask])/mass/(2.33*mh)) #cm/s
+            cs = np.sqrt(kb*np.sum(m[mask]*t[mask])/mass/(2.33*mh)) # unit_base, m/s
             #leaf_cs.append(csconst) #cg
             leaf_cs.append(cs)             
      
