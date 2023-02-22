@@ -61,7 +61,8 @@ def PE(xc, mc, hc):
         bc - array of magnetic field strengths
     """
     ## gravitational potential energy
-    phic = pytreegrav.Potential(xc, mc, hc, G=4.301e4, theta=0.7) # G in code units
+    # G is in code units; Should be 4301.17 for STARFORGE
+    phic = pytreegrav.Potential(xc, mc, hc, G=4.301e3, theta=0.7) # G in code units
     return 0.5*(phic*mc).sum()
 
 def get_evals(dxc):
@@ -205,10 +206,10 @@ def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist,
             leaf_vdisp.append(np.sqrt((m[mask]*vSqr).sum()/mass)) # [m/s]
             leaf_vbulk.append(v_bulk)  # code units [m/s]
             leaf_ke.append((m[mask]*(vSqr/2 + u[mask])).sum()) # code units [Msun m^2/s^2]
-            leaf_keonly.append((m[mask]*(vSqr/2 + u[mask])).sum()) # code units [Msun m^2/s^2]
+            leaf_keonly.append((m[mask]*(vSqr/2)).sum()) # code units [Msun m^2/s^2]
             
             # Get temperature          
-            cs = np.sqrt(kb*np.sum(m[mask]*t[mask])/mass/(2.33*mh))/1e5
+            cs = np.sqrt(kb*np.sum(m[mask]*t[mask])/mass/(2.33*mh)) #cm/s
             #leaf_cs.append(csconst) #cg
             leaf_cs.append(cs)             
      
@@ -517,8 +518,8 @@ def interpolate_profiles(nbin, veldisp, radii, leaf_cs, num, maxsize=0.5):
         
         ind = np.logical_and(rtmp > np.log10(0.0025), rtmp < np.log10(0.1))
         if len(rtmp[ind]) > 2:
-            poly = np.polyfit(rtmp[ind], rhotmp[ind], 1, rcond=None, full=False, w=None, cov=False)
-            leaf_rpow.append(np.min([0.0, poly[0]]))
+            poly = np.polyfit(np.log10(rtmp[ind]), np.log10(rhotmp[ind]), 1, rcond=None, full=False, w=None, cov=False)
+            leaf_rpow.append(np.min([0, poly[0]]))
         else:
             leaf_rpow.append(0.0)
 
