@@ -14,6 +14,7 @@ import imageio
 #-------------------------------------------------------
 # Code to read in leaf histories and plot the time 
 # evolution of the properties for the tracks
+# Author: S. Offner
 #------------------------------------------------------
 
 # STARFORGE snapshot files
@@ -23,21 +24,24 @@ dir  = '/scratch3/03532/mgrudic/STARFORGE_RT/production2/M2e3_R3/M2e3_R3_S0_T1_B
 run = 'M2e3_R3_S0-T1_B0.01_Res126_n2_sol0.5_42'
 
 # Version of analysis files
-vers = '_v4'
+vers = '_v7'
 
 # Leaf history file
 hist_file = 'leaf_history_'+run+vers+'.csv'
 print(hist_file)
 
 # Core property files
-files = 'M2e3_R3_S0-T1_B0.01_Res126_n2_sol0.5_42_snapshot_*_prop_v4.csv'
+files = 'M2e3_R3_S0-T1_B0.01_Res126_n2_sol0.5_42_all_prop_v7.csv'
 
-# Split Tree
+# Split History
 tree_file = 'tree_history_'+run+vers+'.csv'
+
+# Merge History
+merge_file = 'merge_history_'+run+vers+'.csv'
 
 # Specific leaves to look at
 all_tracks = True # If True, plot all tracks
-track_list = [0,1,30] # Else plot these
+track_list = [0,1] # Else plot these
 
 # Image box radius
 boxrad = 0.2 
@@ -52,6 +56,10 @@ with open(tree_file, newline='') as file:
     data = reader(file)
     leaf_tree = list(data)
 
+with open(merge_file, newline='') as file:
+    data = reader(file)
+    merge_tree = list(data)
+
 if all_tracks:
     ntracks = len(leaf_history)
     track_list = list(np.linspace(0, ntracks-1, ntracks))
@@ -59,13 +67,26 @@ if all_tracks:
 # Get some statistics about mergers and splits
 tree_ind = []     # Indicies of all parent and child tracks
 splits = []       # Leaf names where splits occur
-num_nosplit = 0  # Count number of tracks that never split 
+num_nosplit = 0   # Count number of tracks that never split 
 for hist in leaf_tree:
     tree_ind.append(hist[0])
     splits.append(hist[1:])
     if hist[1] == '':
         num_nosplit += 1
 
+merge_leaf = []     # Leaf that is in common
+merge_parent = []   # Index in leaf_history of merge parent
+merge_children = [] # Index in leaf_history of merge child (terminated)
+n_merge = []        # Num of leaves that merge together at the same time
+for hist in merge_tree:
+    short_hist = [int(float(x)) for x in hist if x !=""]
+    merge_leaf.append(short_hist[0]) 
+    merge_parent.append(short_hist[1])
+    merge_children.extend(short_hist[2:]) # Add indicies at the end
+    n_merge.append(len(short_hist)-1)     # Don't count leaf name [0]
+    #print("merge_children =", merge_children)
+
+print("Median, mean, max number of merges =", np.median(n_merge), np.mean(n_merge), np.max(n_merge))
 # Indicies of parents (may or may not have childern)
 unique_ind = np.unique(tree_ind) 
 # Leaf names where split occurs
@@ -75,40 +96,14 @@ nsplit = len(split_ind)    # How many times a split occured (into 2 or more)
 nunique = len(unique_ind)  # How many parents 
 print("Number of tracks that never split %i (frac %f)" %(num_nosplit, num_nosplit/ntracks))
 print("Number of times splits occur %i, num unique indicies %i, num parents %i (frac %f, %f) =" %(nsplit, nunique, nunique-num_nosplit, nsplit/ntracks, nunique/ntracks))
-
-last_leaf = []
-for track in leaf_history:
-    last_leaf.append(np.unique(track)[-1])
-
-
-# Get indicies of the merging tracks
-u, mergeind, counts = np.unique(last_leaf, return_inverse=True, return_counts=True)
-i = 0
-matches = []
-for leaf in u:
-    matches.append([leaf])
-    for j, track in enumerate(leaf_history):
-        ind = [k for k,x in enumerate(track) if x==leaf]
-        if ind:
-            matches[i].append([j, ind])
-    i=i+1
-print("matches =", matches)
-
-mergers = np.where(counts > 1)[0]
-print("# unique, Final # merged tracks, # merging, counts:", len(u), len(mergers), np.sum(counts[mergers]), counts[mergers])
-print("u[mergers]=", len(u[mergers]), u[mergers])
-print(np.array(last_leaf).sort())
-for m in u[mergers]:
-    ind = [i for i,x in enumerate(last_leaf) if x==m]
-    print("m, ind =", m, ind)
-    for i in ind:
-        print(" :", i, leaf_history[i])
+print("Number of times merges occur: %i (%i unique parents) )" %(len(merge_leaf), len(np.unique(merge_parent))))
     
-
 # Read in core properties
 fns = glob.glob(files)
 fns.sort()
 profiles = read_properties(fns)
+
+r_grid = np.logspace(np.log10(2e-3), np.log10(0.2), 20)
 
 # Store properties in arrays
 IDstr = profiles['ID'].values # ID in padded string form
@@ -117,38 +112,51 @@ veldisp = profiles['Dispersion [cm/s]'].values
 # Bulk properties
 lradius = np.array(profiles['Reff [pc]'].values)
 rcoh = profiles['CoherentRadius [pc]'].values # Calculated from profile
-rhopow = profiles['DensityIndex'].values # Calculated from profile
+lrhopow = profiles['DensityIndex'].values # Calculated from profile
 lvbulk = profiles['V Bulk [cm/s]'].values
 ldisp = profiles['LeafDisp [cm/s]'].values
 lmass = profiles['LeafMass [msun]'].values
 lcenter = profiles['Center Position [pc]'].values
 lidx = profiles['Center index'].values
 lmax = profiles['Max Den [cm^-3]'].values
-#leigenvals = profiles['Eigenvals [pc]'].values
+#leigenvals = profiles['Eigenvals [pc]'].values # <=v5
 #leigenvecs = profiles['Eigenvecs'].values
 lshape = profiles['Shape [pc]'].values
 lhalf = profiles['Half Mass R[pc]'].values
 lb = profiles['Mean B [G]'].values
-lke = profiles['LeafKe'].values #Still in code units
-lgrave = np.abs(profiles['LeafGrav'].values) #Still in code units
-lmage = profiles['Mag. Energy'].values #Still in code units
+lke = profiles['LeafKe'].values 
+#print(" *** Correcting lgrave for G value -> /10... (required for vers <=v6)")
+lgrave = np.abs(profiles['LeafGrav'].values)
+lmage = profiles['Mag. Energy'].values 
 lsink = profiles['Num. Sinks'].values
 lsinkmass = profiles['Sink Masses [Msun]'].values
 lsound = profiles['Sound speed [cm/s]'].values # in m/s
 lproto = profiles['Protostellar'].values
+lmax = profiles['Max Den [cm^-3]'].values
+lkeonly = profiles['LeafKe only'].values 
 
 IDnum = []  #Get IDs in numeric form
-
-maxden = [] # To store this leaf tracks properties
+maxden = []
 mass = []
 disp = []
 half = []
-time = [] # Hold time for each track
+proto = []
+time = []
 vir = []
 virmag = []
-aspect = []
+virkeonly = []
+grav = []
+ke = []
+mag = []
+rpow = []
 coher = []
-proto = []
+shape = []
+aspect = []
+aspect2 = []
+denprof = []
+velprof = []
+rhopow = []
+
 tracklength = np.zeros(len(track_list))
 stars = np.zeros(len(track_list))
 lowmass = np.zeros(len(track_list))
@@ -164,6 +172,8 @@ for num, track_num in enumerate(track_list):
     t = 0
     i  = 0
     
+
+
     for leafid in track_ids:
         #print("leafid =", leafid)
         if leafid:
@@ -184,9 +194,13 @@ for num, track_num in enumerate(track_list):
                 virmag.append([lmage[ind][0]/lgrave[ind][0]])
                 asp = lshape[ind][0]
                 aspect.append([asp[1]/asp[2]])
+                aspect2.append([asp[0]/asp[2]])
                 coher.append([rcoh[ind][0]])
+                rhopow.append([lrhopow[ind][0]])
+                virkeonly.append([lkeonly[ind][0]/lgrave[ind][0]])
         
             else:
+                #print(i, num, ind, leafid, len(maxden))
                 maxden[num].append(lmax[ind][0])
                 mass[num].append(lmass[ind][0])
                 disp[num].append(ldisp[ind][0])
@@ -196,34 +210,37 @@ for num, track_num in enumerate(track_list):
                 virmag[num].append(lmage[ind][0]/lgrave[ind][0])
                 asp = lshape[ind][0]
                 aspect[num].append(asp[1]/asp[2])
+                aspect2[num].append(asp[0]/asp[2])
                 coher[num].append(rcoh[ind][0])
                 proto[num].append(lproto[ind][0])
+                rhopow[num].append(lrhopow[ind][0])
+                virkeonly[num].append(lkeonly[ind][0]/lgrave[ind][0])
+        
             i+=1
     tracklength[num] = np.max(time[num])+dt/2.0
     stars[num] = np.max(proto[num])
-    if np.min(mass[num]) < 0.1:
-        lowmass[num] = 1.0
+    #print("stars =", num, stars[num], proto[num])
+    #if np.min(mass[num]) < 0.1: #Check
+    #    lowmass[num] = 1.0
 
+# Check
+#print("Number of tracks with a low mass core =", np.sum(lowmass))
 
-# Find, remove tracks with low-mass cores
-print("Number of tracks with a low mass core =", np.sum(lowmass))
-n_proto = np.sum(np.where(stars > 0)[0])
-print("Number of tracks with a star =", n_proto)
+n_proto = len(np.where(stars > 0)[0])
+print("Total number of tracks, number of tracks with stars =", ntracks, n_proto)
+# This includes merged tracks whose stars get added to their parents.
+# Need to count and remove the merging tracks with stars
 print("Total number of stars in cores =", np.sum(stars))
-print("Fraction of cores that disperse with no star = ", n_proto/len(mass)) 
-#ind = np.where(lowmass == 0)[0]
-#tracklength = tracklength[ind]
-#maxden = maxden[ind]
-#mass = mass[ind]
-#disp = disp[ind]
-#half = half[ind]
-#vir = vir[ind]
-#virmag = virmag[ind]
-#stars = stars[ind]
-#coher = coher[ind]
-#proto = proto[ind]
-#time = time[ind]
-#aspect = aspect[ind]
+print("Fraction of starless cores that disperse or merge  = ", (ntracks-n_proto)/ntracks) 
+
+starless_merge =  common_member(merge_children, np.where(stars == 0)[0]) 
+protostellar_merge =  common_member(merge_children, np.where(stars > 0)[0]) 
+
+print("Number, fraction of starless tracks that merge =", len(starless_merge), len(starless_merge)/ntracks)
+print("Number, fraction of starless cores that disperse (subtract merges) =", (ntracks-n_proto-len(starless_merge)), (ntracks-n_proto-len(starless_merge))/ntracks)
+# Note this only counts the children, i.e., excludes parent that continues after the merge 
+print("Number of merged tracks with stars, fraction of merges =", len(protostellar_merge), len(protostellar_merge)/len(merge_children))
+print("Number of stars in merging tracks =", np.sum(stars[protostellar_merge]))
 
 # Make plots
 fig,ax = plt.subplots()
@@ -233,167 +250,103 @@ ax.set_xscale('log')
 hist, bins = np.histogram(tracklength, bins=12)
 logbins = np.logspace(np.log10(bins[0]),np.log10(bins[-1]),len(bins))
 #ax.hist(tracklength, color='blue', bins=logbins)
-n, bins, patches = ax.hist(tracklength[np.where(stars > 0)[0]], color='green', bins=logbins, stacked=True, label='Protostellar', alpha=0.5)
-n, bins, patches = ax.hist(tracklength[np.where(stars == 0)[0]], color='grey',bins=logbins, stacked=True, label='Starless', alpha=0.5)
+n, bins, patches = ax.hist(tracklength, color='grey',bins=logbins, label='All', alpha=0.5)
+n, bins, patches = ax.hist(tracklength[np.where(stars > 0)[0]], color='green', bins=logbins,  label='Protostellar', alpha=0.5)
+n, bins, patches = ax.hist(tracklength[np.unique(merge_children)], color='blue', bins=logbins,  label='Merging', alpha=0.5)
+
 ax.legend()
 plt.xlim([1e-2, 7])
 fig.savefig("Track_lengths"+vers+".png")
 
+# General Plotting Function
+def make_plot(xdata, ydata, stars, vers, xlabel="t [Myr]", ylabel="$R_{coh}$ [pc]", xlog=True, ylog=True, filename="Rcoh"):
+
+    fig = plt.figure()
+    gs = fig.add_gridspec(2, hspace=0)
+    ax = gs.subplots(sharex=True,sharey=True)
+    ax[1].set_xlabel(xlabel)
+    ax[0].set_ylabel(ylabel)
+    if xlog: 
+        ax[0].set_yscale('log')
+    if ylog:
+        ax[0].set_xscale('log')
+    i =0
+    for t, c in zip(xdata,ydata):
+        if stars[i] == 0:
+            line1, =  ax[0].plot(t, c, alpha=0.05, color='grey', label='Starless')
+        elif stars[i] == 1:
+            line2, = ax[1].plot(t, c, alpha=0.05, color='blue', label='Single Protostar')
+        else:
+            line3, = ax[1].plot(t, c, alpha=0.05, color='green', label='Multple Protostars')
+            i=i+1
+
+    ax[0].legend(handles=[line1, line2, line3], loc='upper right', labelcolor=['grey', 'blue', 'green'], handlelength=1)
+    ax[0].legend(handles=[line1, line2, line3], loc='upper right', labelcolor=['grey', 'blue', 'green'], hanglelength=1)
+    fig.savefig(filename+"_alltracks"+vers+".png")
+
+make_plot(time, vir, stars, vers, xlabel="t [Myr]", ylabel=r'$\alpha_{vir}$', xlog=True, ylog=True, filename="Vir")
+
+make_plot(time, coher, stars, vers, xlabel="t [Myr]", ylabel="$R_{coh}$ [pc]", xlog=True, ylog=True, filename="Rcoh")
+
+make_plot(time, maxden, stars, vers, xlabel="t [Myr]", ylabel=r'$n_{max}$ [cm$^{-3}$]', xlog=True, ylog=True, filename="Maxden")
+
+make_plot(time, virmag, stars, vers, xlabel="t [Myr]", ylabel=r'$\alpha_{vir,B}$', xlog=True, ylog=True, filename="VirMag")
+
+make_plot(time, virkeonly, stars, vers, xlabel="t [Myr]", ylabel=r'$\alpha_{vir}$', xlog=True, ylog=True, filename="Virkeonly")
+
+make_plot(time, aspect, stars, vers, xlabel="t [Myr]", ylabel='Aspect Ratio $b/a$', xlog=True, ylog=True, filename="Asp")
+
+make_plot(time, aspect2, stars, vers, xlabel="t [Myr]", ylabel='Aspect Ratio $c/a$', xlog=True, ylog=True, filename="Asp2")
+
+make_plot(time, half, stars, vers, xlabel="t [Myr]", ylabel="$R_{half}$ [pc]", xlog=True, ylog=True, filename="Rhalf")
+
+make_plot(time, disp, stars, vers, xlabel="t [Myr]", ylabel=r'$\sigma$ [km/s]', xlog=True, ylog=True, filename="Vdisp")
+
+make_plot(time, mass, stars, vers, xlabel="t [Myr]", ylabel=r'$m$ [M$_\odot$]', xlog=True, ylog=True, filename="Mass")
+
 fig = plt.figure()
 gs = fig.add_gridspec(2, hspace=0)
 ax = gs.subplots(sharex=True,sharey=True)
-ax[1].set_xlabel("t [Myr]")
-ax[0].set_ylabel("$R_{coh}$ [pc]")
-#ax.set_yscale('log')
-ax[0].set_xscale('log')
-i =0
-for t, c in zip(time,coher):
-    if stars[i] == 0:
-        ax[0].plot(t, c, alpha=0.05, color='grey')
-    elif stars[i] == 1:
-        ax[1].plot(t, c, alpha=0.05, color='blue')
-    else:
-        ax[1].plot(t, c, alpha=0.05, color='green')
-    i=i+1
-
-fig.savefig("Rcoh_alltracks"+vers+".png")
-
-#fig,ax = plt.subplots()
-fig = plt.figure()
-gs = fig.add_gridspec(2, hspace=0)
-ax = gs.subplots(sharex=True,sharey=True)
-ax[1].set_xlabel("t [Myr]")
-ax[0].set_ylabel(r'$\alpha_{vir}$')
-ax[0].set_yscale('log')
+ax[1].set_xlabel("r [pc]")
+ax[0].set_ylabel("Log $n$ [cm$^{-3}$]")
+#ax[0].set_yscale('log')
 ax[0].set_xscale('log')
 i = 0
-for t, v in zip(time,vir):
-    if stars[i] == 0:
-        ax[0].plot(t, v, alpha=0.05, color='grey')
-    elif stars[i] == 1:
-        ax[1].plot(t, v, alpha=0.05, color='blue')
+for rho in density:
+    prof, ind = np.unique(rho, return_index=True)
+    if lproto[i] == 0:
+        line1, = ax[0].plot(r_grid[ind], rho[ind], alpha=0.005, color='grey',label='Starless')
+    elif lproto[i] == 1:
+        line2, = ax[1].plot(r_grid[ind], rho[ind], alpha=0.005, color='blue', label='Single')
     else:
-        ax[1].plot(t, v, alpha=0.05, color='green')
+        line3, = ax[1].plot(r_grid[ind], rho[ind], alpha=0.005, color='green', label='Multiple')
     i=i+1
 
-fig.savefig("Vir_alltracks"+vers+".png")
+ax[0].legend(handles=[line1, line2, line3], loc='upper right', labelcolor=['grey', 'blue', 'green'], handlelength=1)
+ax[0].legend(handles=[line1, line2, line3], loc='upper right', labelcolor=['grey', 'blue', 'green'], handlelength=1)
+fig.savefig("Density_profiles_all"+vers+".png", color='blue')
 
-#fig,ax = plt.subplots()
 fig = plt.figure()
 gs = fig.add_gridspec(2, hspace=0)
 ax = gs.subplots(sharex=True,sharey=True)
-ax[1].set_xlabel("t [Myr]")
-ax[0].set_ylabel(r'$\alpha_{vir,B}$')
-ax[0].set_yscale('log')
-ax[0].set_xscale('log')
-i = 0
-for t, v in zip(time,virmag):
-    if stars[i] == 0:
-        ax[0].plot(t, v, alpha=0.05, color='grey')
-    elif stars[i] == 1:
-        ax[1].plot(t, v, alpha=0.05, color='blue')
-    else:
-        ax[1].plot(t, v, alpha=0.05, color='green')
-    i=i+1
-
-fig.savefig("VirMag_alltracks"+vers+".png")
-
-#fig,ax = plt.subplots()
-fig = plt.figure()
-gs = fig.add_gridspec(2, hspace=0)
-ax = gs.subplots(sharex=True,sharey=True)
-ax[1].set_xlabel("t [Myr]")
-ax[0].set_ylabel('Aspect Ratio $b/a$')
-ax[0].set_yscale('log')
-ax[0].set_xscale('log')
-i=0
-for t, a in zip(time,aspect):
-    if stars[i] == 0:
-        ax[0].plot(t, a, alpha=0.05, color='grey')
-    elif stars[i] == 1:
-        ax[1].plot(t, a, alpha=0.05, color='blue')
-    else:
-        ax[1].plot(t, a, alpha=0.05, color='green')
-    i=i+1
-
-fig.savefig("Asp_alltracks"+vers+".png")
-
-#fig,ax = plt.subplots()
-fig = plt.figure()
-gs = fig.add_gridspec(2, hspace=0)
-ax = gs.subplots(sharex=True,sharey=True)
-ax[1].set_xlabel("t [Myr]")
-ax[0].set_ylabel("$n_{max}$ [cm$^{-3}$]")
-ax[0].set_yscale('log')
-ax[0].set_xscale('log')
-i=0
-for t, den in zip(time,maxden):
-    if stars[i] == 0:
-        ax[0].plot(t, den, alpha=0.05, color='grey')
-    elif stars[i] == 1:
-        ax[1].plot(t, den, alpha=0.05, color='blue')
-    else:
-        ax[1].plot(t, den, alpha=0.05, color='green')
-    i=i+1
-
-fig.savefig("Max_den_alltracks"+vers+".png")
-
-#fig,ax = plt.subplots()
-fig = plt.figure()
-gs = fig.add_gridspec(2, hspace=0)
-ax = gs.subplots(sharex=True,sharey=True)
-ax[1].set_xlabel("t [Myr]")
-ax[0].set_ylabel("$R_{half}$ [pc]")
-ax[0].set_yscale('log')
-ax[0].set_xscale('log')
-i=0
-for t, h in zip(time,half):
-    if stars[i] == 0:
-        ax[0].plot(t, h, alpha=0.05, color='blue')
-    elif stars[i] == 1:
-        ax[1].plot(t, h, alpha=0.05, color='blue')
-    else:
-        ax[1].plot(t, h, alpha=0.05, color='green')
-    i=i+1
-
-fig.savefig("Rhalf_alltracks"+vers+".png")
-
-#fig,ax = plt.subplots()
-fig = plt.figure()
-gs = fig.add_gridspec(2, hspace=0)
-ax = gs.subplots(sharex=True,sharey=True)
-ax[1].set_xlabel("t [Myr]")
+ax[1].set_xlabel("r [pc]")
 ax[0].set_ylabel("$\sigma$ [km/s]")
-ax[0].set_yscale('log')
-ax[0].set_xscale('log')
-i=0
-for t, d in zip(time,disp):
-    if stars[i] == 0:
-        ax[0].plot(t, np.array(d)/1e5, alpha=0.05, color='blue')
-    elif stars[i] == 1:
-        ax[1].plot(t, np.array(d)/1e5, alpha=0.05, color='blue')
-    else:
-        ax[1].plot(t, np.array(d)/1e5, alpha=0.05, color='green')
-    i=i+1        
-
-fig.savefig("Vdisp_alltracks"+vers+".png")
-            
-#fig,ax = plt.subplots()
-fig = plt.figure()
-gs = fig.add_gridspec(2, hspace=0)
-ax = gs.subplots(sharex=True,sharey=True)
-ax[1].set_xlabel("t [Myr]")
-ax[0].set_ylabel("$m$ [M$_\odot$]")
-ax[0].set_yscale('log')
+#ax[0].set_yscale('log')
 ax[0].set_xscale('log')
 i = 0
-for t, m in zip(time,mass):
-    if stars[i] == 0:
-        ax[0].plot(t, m, alpha=0.05, color='grey')
-    elif stars[i] == 1:
-        ax[1].plot(t, m, alpha=0.05, color='blue')
+for vel in veldisp:
+    prof, ind = np.unique(vel, return_index=True)
+    if lproto[i] == 0:
+        ax[0].plot(r_grid[ind], np.array(vel[ind])/1000., alpha=0.005, color='grey',label='Starless')
+    elif lproto[i] == 1:
+        ax[1].plot(r_grid[ind], np.array(vel[ind])/1000., alpha=0.005, color='blue',label='Single')
     else:
-        ax[1].plot(t, m, alpha=0.05, color='green')
+        ax[1].plot(r_grid[ind], np.array(vel[ind])/1000., alpha=0.005, color='green',label='Multiple')
     i=i+1
 
-fig.savefig("Mass_alltracks"+vers+".png", color='blue')
+ax[0].legend(handles=[line1, line2, line3], loc='upper right', labelcolor=['grey', 'blue', 'green'], handlelength=1)
+ax[0].legend(handles=[line1, line2, line3], loc='upper right', labelcolor=['grey', 'blue', 'green'], handlelength=1)
+fig.savefig("Veldisp_profiles_all"+vers+".png", color='blue')
+
+
+

@@ -18,6 +18,7 @@ maxsize = 0.4 # Max size used to construct profile (code units)
 
 res_limit = 1e-3 # Only consider cells with masses at or above min resolution
 
+# Usual Defaults
 #unit_base = {'UnitMagneticField_in_gauss':  1e+4,
 #             'UnitLength_in_cm'         : 3.08568e+18,
 #             'UnitMass_in_g'            :   1.989e+33,
@@ -34,7 +35,7 @@ for fn in fns:
 
     print("Loading data from snapshot %s..." %fn)
     den, x, m, h, u, b, v, t, fmol, fneu, partlist, partmasses, partvels, partids, tcgs,  unit_base = load_data(fn, res_limit=res_limit)
-    prop_file=outdir+run+'_snapshot_%1.3f_'%tcgs+snap+'_prop_v7.csv'
+    prop_file=outdir+run+'_snapshot_%1.3f_'%tcgs+snap+'_prop_v8.csv'
     print("Run Time =",tcgs)
 
     print("Calculating nH2...")
@@ -90,7 +91,7 @@ for fn in fns:
         combined_all[leaf][18] = leaf_mage[leaf]*unit_base['UnitB']**2*unit_base['UnitLength']**3
         combined_all[leaf][19] = leaf_sinkallm[leaf]
         combined_all[leaf][20] = leaf_cs[leaf]*unit_base['UnitVel']
-        combined_all[leaf][21] = leaf_keonly[leaf]
+        combined_all[leaf][21] = leaf_keonly[leaf]*unit_base['UnitMass']*unit_base['UnitVel']**2
         combined_all[leaf][22] = leaf_protostellar[leaf]
 
     np.set_printoptions(threshold=sys.maxsize)
