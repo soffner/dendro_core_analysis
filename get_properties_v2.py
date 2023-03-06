@@ -58,7 +58,6 @@ def PE(xc, mc, hc):
     """ xc - array of positions 
         mc - array of masses 
         hc - array of smoothing lengths 
-        bc - array of magnetic field strengths
     """
     ## gravitational potential energy
     # G is in code units; Should be 4301.17 for STARFORGE
@@ -105,8 +104,7 @@ def load_data(file, res_limit = 0.0):
     fneu = f['PartType0']['NeutralHydrogenAbundance'][:]*mask
     t = f['PartType0']['Temperature'][:]*mask
     v = f['PartType0']['Velocities']*mask3d
-    print("Max/min temp =", np.max(t), np.min(t))
-  
+
     if 'PartType5' in f.keys():
         partlist = f['PartType5']['Coordinates'][:]
         partmasses = f['PartType5']['Masses'][:]
@@ -124,7 +122,7 @@ def load_data(file, res_limit = 0.0):
     unitlen = f['Header'].attrs['UnitLength_In_CGS']
     unitmass = f['Header'].attrs['UnitMass_In_CGS']
     unitvel = f['Header'].attrs['UnitVelocity_In_CGS']
-    unitb = 1e4 #f['Header'].attrs['UnitMagneticField_In_CGS'] #Not defined
+    unitb = 1e4 #f['Header'].attrs['UnitMagneticField_In_CGS'] #Not defined in some
 
     tcgs = time*(unitlen/unitvel)/(3600.0*24.0*365.0*1e6)
     unit_base = {'UnitLength' : unitlen, 'UnitMass': unitmass, 'UnitVel': unitvel, 'UnitB': unitb}
@@ -201,7 +199,6 @@ def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist,
             
             v_bulk = np.average(v[mask,:], weights=m[mask],axis=0)
             v_well = v[mask,:] - v_bulk
-            #print('vbulk = ', v_bulk)
             vSqr = np.sum(v_well**2,axis=1)
             leaf_vdisp.append(np.sqrt((m[mask]*vSqr).sum()/mass)) # [m/s]
             leaf_vbulk.append(v_bulk)  # code units [m/s]
@@ -215,7 +212,8 @@ def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist,
      
             # Get grav, magnetic info
             leaf_grave.append(PE(x[mask], m[mask], h[mask]))
-            leaf_bmean.append(np.sqrt(np.average(b[mask,:]*b[mask,:], weights=m[mask],axis=0))) #*unit_base["UnitMagneticField_in_gauss"]
+            leaf_bmean.append(np.sqrt(np.average(b[mask,:]*b[mask,:], weights=m[mask],axis=0))) 
+            #leaf_bmean.append(np.average(b[mask,:], weights=m[mask]/den[mask],axis=0)) # volume weighted version, gives similar to above
             leaf_mage.append(BE(m[mask], b[mask], den[mask])) #code units
             
             # Statistics for sinks contained within the leaf boundary
@@ -348,7 +346,6 @@ def calc_profiles(dendro, nh2, x, v, nbin, num, maxsize=0.5, plotleaf=False, sav
         for j in range(len(nbin)):  
             ind = (leaf_nh2 > nbin[j])
             if len(leaf_nh2[ind]) > 1:
-                #print(" nbin, ", j)
                 mass = np.sum(leaf_nh2[ind])
                 v_com = np.average(smv[ind,:], weights=leaf_nh2[ind],axis=0)
                 v_well = smv[ind,:] - v_com
@@ -417,7 +414,6 @@ def calc_profiles_slow(dendro, nh2, x, v, nbin, maxsize=0.5, plotleaf=False, sav
                 
                 if child.is_leaf:
                     if child.idx is not self_id: #check if child is a leaf and not the self
-                        #print("condition 1")
                         mask2 = child.get_mask()
                         mask = np.logical_or(mask, mask2)
                         if plotleaf:
@@ -426,8 +422,7 @@ def calc_profiles_slow(dendro, nh2, x, v, nbin, maxsize=0.5, plotleaf=False, sav
                     #else:
                         #print("This is the self leaf")
                 elif child.is_branch and (child.idx not in ancestors_idx):
-                    #print("condition 2")
-                    #branch values include their substructures, so can chop at branch "base".
+        
                     mask2 = child.get_mask()
                     mask = np.logical_or(mask, mask2)
                     
@@ -454,9 +449,7 @@ def calc_profiles_slow(dendro, nh2, x, v, nbin, maxsize=0.5, plotleaf=False, sav
             allden.append(leaf_nh2[mask2])  #To check whether density distribution matches
             allradii.append(r)
 
-        #fig, ax = plt.subplots()
         for j in range(len(nbin)):
-            print(" nbin ", j)
             ind = (leaf_nh2[mask2] > nbin[j])
             if len(r[ind]) > 3:          
                 # Note nh2 is just a weighting factor;
@@ -501,7 +494,6 @@ def interpolate_profiles(nbin, veldisp, radii, leaf_cs, num, maxsize=0.5):
         mask_clean = np.isfinite(i_size)&np.isfinite(i_density)&np.isfinite(i_veldisp)
         sortind = i_size[mask_clean].argsort()
         i_density_interp.append(np.interp(size_grid, (i_size[mask_clean]), (i_density[mask_clean])))
-        #print(" ?", i_size[mask_clean])
         i_veldisp_interp.append(np.interp(size_grid, (i_size[mask_clean]), (i_veldisp[mask_clean])))
         idx = np.where(np.array(i_veldisp_interp[i]) < np.log10(leaf_cs[i]))[0] 
         if idx.size > 0: 
@@ -509,17 +501,15 @@ def interpolate_profiles(nbin, veldisp, radii, leaf_cs, num, maxsize=0.5):
         else:
             leaf_rcoh.append(0.0)
 
-        # fit the profile: ~0.03 -0.1
-        #poly = np.polyfit(size_grid[2:17],i_density_interp[i][2:17], 1, rcond=None, full=False, w=None, cov=False) #1 = Degree of fit
-
-        # Fit the raw data and only where it's defined
+        # Fit the raw data and only where it's definedx
         rtmp = i_size[mask_clean]
         rhotmp = i_density[mask_clean]
         
         ind = np.logical_and(rtmp > np.log10(0.0025), rtmp < np.log10(0.1))
-        if len(rtmp[ind]) > 2:
-            poly = np.polyfit(np.log10(rtmp[ind]), np.log10(rhotmp[ind]), 1, rcond=None, full=False, w=None, cov=False)
-            leaf_rpow.append(np.min([0, poly[0]]))
+        if len(rtmp[ind]) > 1:
+            poly = np.polyfit(rtmp[ind], rhotmp[ind], 1, rcond=None, full=False, w=None, cov=False)
+            # Limit slope to range [0, -4]
+            leaf_rpow.append(np.max([np.min([0, poly[0]]),-4]))
         else:
             leaf_rpow.append(0.0)
 
