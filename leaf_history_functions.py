@@ -19,7 +19,8 @@ def load_pos_den(file, res_limit=0.0):
     # Load snapshot data
     f = h5py.File(file, 'r')
     mask = (f['PartType0']['Masses'][:] >= res_limit*0.999)
-    x = f['PartType0']['Coordinates'][:]*mask
+    mask3d = np.array([mask, mask, mask]).T
+    x = f['PartType0']['Coordinates'][:]*mask3d
     den = f['PartType0']['Density'][:]*mask
     return x, den
 
@@ -45,7 +46,7 @@ def create_leaf_history(fns,run,res_limit=0.0): #, ntimes, time_file):
 
     # Load first snapshot
     snap = fns[0][-8:-5]
-    dendro_file = run+'_snapshot_'+snap+'_min_val1e3.fits' 
+    dendro_file = run+'_snapshot_'+snap+'_min_val1e3_res1e-3.fits' 
     dendro = Dendrogram.load_from(dendro_file)
     ids = load_data_ids(fns[0], res_limit=res_limit)
     print("*** Starting from snapshot ", snap)
@@ -53,7 +54,7 @@ def create_leaf_history(fns,run,res_limit=0.0): #, ntimes, time_file):
     # Loop through snapshots
     for j,snapshot in enumerate(fns[:-1]):
         next_snap = fns[j+1][-8:-5]
-        next_dendro_file = run+'_snapshot_'+next_snap+'_min_val1e3.fits' 
+        next_dendro_file = run+'_snapshot_'+next_snap+'_min_val1e3_res1e-3.fits' 
         next_dendro = Dendrogram.load_from(next_dendro_file)
         next_ids = load_data_ids(fns[j+1],res_limit=res_limit)
         print(" --- ", next_snap)
@@ -154,8 +155,8 @@ def create_leaf_history(fns,run,res_limit=0.0): #, ntimes, time_file):
         unmatched = np.where(matched == 0)[0]
         if unmatched.any():
             for item_idx in unmatched:
-                if overlap[item_idx]> 0:
-                    print("Unmated leaf: ", next_leaves[item_idx].idx, fraction_leaf[item_idx], fraction_nextleaf[item_idx])
+                #if overlap[item_idx]> 0:
+                #    print("Unmated leaf: ", next_leaves[item_idx].idx, fraction_leaf[item_idx], fraction_nextleaf[item_idx])
                 leaf_histories.append([str("%05i"%(int(next_snap))) + str(next_leaves[item_idx].idx)])
                 tree.append([nhist])
                 nhist+=1
@@ -197,7 +198,7 @@ def plot_leaves(fns, run):
     for i in range(len(fns)):
         print(".. Plotting ", i)
         snap = fns[i][-8:-5]
-        dendro_file = run+'_snapshot_'+snap+'_min_val1e3.fits' 
+        dendro_file = run+'_snapshot_'+snap+'_min_val1e3_res1e-3.fits' 
         dendro = Dendrogram.load_from(dendro_file)
 
         x,den = load_pos_den(fns[i],res_limit=res_limit)
@@ -237,5 +238,14 @@ def read_properties(fns):
     profiles = pd.concat(frames)
     return profiles
 
-   
-   
+# Helper function to find common items   
+def common_member(a, b):
+    a_set = set(a)
+    b_set = set(b)
+ 
+    if (a_set & b_set):
+        common = list(a_set & b_set)
+    else:
+        common = []
+
+    return common
