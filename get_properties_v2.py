@@ -87,6 +87,8 @@ def load_data(file, res_limit = 0.0):
 
     # Load snapshot data
     f = h5py.File(file, 'r')
+    #for key in f['PartType0']:
+    #    print(key)
 
     # Mask to remove any cells with mass below some value 
     # (e.g., such as feedback cells) 
@@ -102,7 +104,8 @@ def load_data(file, res_limit = 0.0):
     b = f['PartType0']['MagneticField'][:]*mask3d
     fmol = f['PartType0']['MolecularMassFraction'][:]*mask
     fneu = f['PartType0']['NeutralHydrogenAbundance'][:]*mask
-    t = f['PartType0']['Temperature'][:]*mask
+    #t = f['PartType0']['Temperature'][:]*mask
+    t = f['PartType0']['SoundSpeed'][:]*mask
     v = f['PartType0']['Velocities']*mask3d
 
     if 'PartType5' in f.keys():
@@ -174,6 +177,7 @@ def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist,
     for leaf in dendro:
         if leaf.is_leaf:
             print("Analyzing leaf ", leaf, " size", leaf.get_npix())
+            #start = time.time()
             mask = leaf.get_mask()
             mass = np.sum(m[mask])
             leaf_masses.append(mass)    # code units [msun]
@@ -182,13 +186,17 @@ def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist,
             leaf_centidx.append(idx)
             leaf_centpos.append(x[idx]) # code units [pc]
             leaf_maxden.append(maxd)
-        
+            #print(" Complete basic leaf info:", (time.time() - start)/60.)
+
+
             # Get size information
-            dx = x[mask]-x[idx]
-           
+            #start = time.time()
+            dx = x[mask]-x[idx]           
             shape = get_shape(dx)
             leaf_shape.append(shape)
-                  
+            #print(" Complete shape info:", (time.time() - start)/60.)
+
+            #start = time.time()
             r = np.sqrt(np.sum(dx**2,axis=1)) # code units [pc]
             leaf_halfmass.append(np.median(r)) # code units [pc]
             leaf_reff.append(np.sqrt(5./3 * np.average(r**2,weights=m[mask]))) # code units [pc] 
@@ -205,26 +213,36 @@ def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist,
             leaf_ke.append((m[mask]*(vSqr/2 + u[mask])).sum()) # code units [Msun m^2/s^2]
             leaf_keonly.append((m[mask]*(vSqr/2)).sum()) # code units [Msun m^2/s^2]
             
+            #print(" Complete r,v info:", (time.time() - start)/60.)
+
+
             # Get temperature          
-            cs = np.sqrt(kb*np.sum(m[mask]*t[mask])/mass/(2.33*mh)) # unit_base, m/s
+            #cs = np.sqrt(kb*np.sum(m[mask]*t[mask])/mass/(2.33*mh)) # unit_base, m/s
+            # Here soundspeed is stored in temperature field
+            cs = np.average(t[mask], weights=m[mask]) # unit_base, m/s
             #leaf_cs.append(csconst) #cg
             leaf_cs.append(cs)             
      
             # Get grav, magnetic info
+            #start = time.time()
             leaf_grave.append(PE(x[mask], m[mask], h[mask]))
             leaf_bmean.append(np.sqrt(np.average(b[mask,:]*b[mask,:], weights=m[mask],axis=0))) 
             #leaf_bmean.append(np.average(b[mask,:], weights=m[mask]/den[mask],axis=0)) # volume weighted version, gives similar to above
             leaf_mage.append(BE(m[mask], b[mask], den[mask])) #code units
-            
+            #print(" Complete grav, mag info:", (time.time() - start)/60.)
+
             # Statistics for sinks contained within the leaf boundary
+            #start = time.time()
             sinkm = []
             sinkids = []
             numsinks = 0
             numproto = 0        
             if np.any(partlist):
+                
+                minx = np.array([np.min(x[mask,0]), np.min(x[mask,1]), np.min(x[mask,2])])
+                maxx = np.array([np.max(x[mask,0]), np.max(x[mask,1]), np.max(x[mask,2])])
                 for loc, s in enumerate(partlist):
-                    minx = np.array([np.min(x[mask,0]), np.min(x[mask,1]), np.min(x[mask,2])])
-                    maxx = np.array([np.max(x[mask,0]), np.max(x[mask,1]), np.max(x[mask,2])])
+
                     if np.sum(s < maxx) + np.sum(s > minx) == 6:
                         diffv = np.sqrt(np.sum((v_bulk - partvels[loc])**2, axis=0))
                         # Velocity difference check
@@ -244,7 +262,9 @@ def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist,
             leaf_sinkallm.append(sinkm) # Save sink masses
             leaf_sinkallid.append(sinkids) # Keep sink ids
             leaf_protostellar.append(numproto) # N sink close to density peak
-        
+            #print(" Complete sink info:", (time.time() - start)/60.)
+
+
     return leaf_masses, leaf_maxden, leaf_centidx, leaf_centpos, leaf_vdisp, leaf_vbulk, leaf_shape, leaf_halfmass, leaf_reff, leaf_bmean, leaf_mage, leaf_ke, leaf_grave, leaf_sink, leaf_sinkallm, leaf_sinkallid, leaf_protostellar, leaf_id, leaf_cs, leaf_keonly
     
 def load_dendrogram(dendro_file, nh2, x, num):
@@ -493,8 +513,16 @@ def interpolate_profiles(nbin, veldisp, radii, leaf_cs, num, maxsize=0.5):
         i_veldisp = np.log10(veldisp[i][::-1]) #Convert to km/s
         mask_clean = np.isfinite(i_size)&np.isfinite(i_density)&np.isfinite(i_veldisp)
         sortind = i_size[mask_clean].argsort()
-        i_density_interp.append(np.interp(size_grid, (i_size[mask_clean]), (i_density[mask_clean])))
-        i_veldisp_interp.append(np.interp(size_grid, (i_size[mask_clean]), (i_veldisp[mask_clean])))
+        try:
+            den_interp = np.interp(size_grid, (i_size[mask_clean]), (i_density[mask_clean]))
+            vel_interp = np.interp(size_grid, (i_size[mask_clean]), (i_veldisp[mask_clean]))
+        except ValueError:
+            den_interp = np.zeros(len(nbin))
+            vel_interp = np.zeros(len(nbin))
+            
+        i_density_interp.append(den_interp)
+        i_veldisp_interp.append(vel_interp)
+
         idx = np.where(np.array(i_veldisp_interp[i]) < np.log10(leaf_cs[i]))[0] 
         if idx.size > 0: 
             leaf_rcoh.append(10**size_grid[np.max(idx)])
@@ -516,23 +544,26 @@ def interpolate_profiles(nbin, veldisp, radii, leaf_cs, num, maxsize=0.5):
     # Plot interpolated profiles
     fig, ax = plt.subplots()
     for i in range(len(leaf_cs)):
+       
         ax.plot(10**size_grid, 10**i_density_interp[i], alpha=0.1)
 
     ax.set_yscale('log')
     ax.set_xscale('log')
     ax.set_xlim([0.001, maxsize/2.0])
+    ax.set_ylim([2e4,2e7])
     plt.savefig("Interpolated_Densities_"+num+".png")
 
 
     fig, ax = plt.subplots()
 
-    for i in range(len(leaf_cs)):
+    for i in range(len(leaf_cs)):       
         ax.plot(10**size_grid, 10**i_veldisp_interp[i], alpha=0.1)
 
     ax.plot(np.array([1e-3,maxsize/2.0]),np.array([0.188e3, 0.188e3]), color='black')                
     ax.set_yscale('log')
     ax.set_xscale('log')
     ax.set_xlim([0.001, 2e-1])
+    ax.set_ylim([8.0,2e4])
     plt.savefig("Interpolated_veldisp_"+num+".png")
 
     return i_density_interp, i_veldisp_interp, size_grid, leaf_rcoh, leaf_rpow
