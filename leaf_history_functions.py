@@ -5,6 +5,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 import sys
 import gc as gc
+import glob
 
 # Load only particle ids
 def load_data_ids(file, res_limit = 0.0):
@@ -196,6 +197,7 @@ def create_leaf_history_fast(fns,run,res_limit=0.0): #, ntimes, time_file):
     corefile = glob.glob(run+'_snapshot_*_'+snap+'_prop_v1.csv')
     coredata = read_properties(corefile)
     centpos_snap = coredata['Center Position [pc]'].values
+    print("centpos =", centpos_snap)
 
     # Loop through snapshots
     for j,snapshot in enumerate(fns[:-1]):
@@ -205,9 +207,9 @@ def create_leaf_history_fast(fns,run,res_limit=0.0): #, ntimes, time_file):
         next_ids = load_data_ids(fns[j+1],res_limit=res_limit)
 
         # Load density peak locations
-        corefile = glob.glob(run+'_snapshot_*'+next_snap+'_prop_v1.csv')
-        coredata = read_properties(corefile)
-        centpos_nextsnap = coredata['Center Position [pc]'].values
+        corefile_next = glob.glob(run+'_snapshot_*'+next_snap+'_prop_v1.csv')
+        coredata_next = read_properties(corefile_next)
+        centpos_nextsnap = coredata_next['Center Position [pc]'].values
 
         print(" --- ", next_snap)
         out_nodefile = 'nodes_edges_'+run+'_'+snap+'_'+next_snap+'.csv'
@@ -224,7 +226,7 @@ def create_leaf_history_fast(fns,run,res_limit=0.0): #, ntimes, time_file):
             next_leaves_indices[m] = next_ids[leaf.get_mask()]
 
         # Get location of current leaf in the leaf_history
-        for thisleafidx, leaf in leaves:
+        for thisleafidx, leaf in enumerate(leaves):
 
             # Number of cells in common with each leaf in next snapshot
             overlap = np.zeros(sz_next_leaves) 
@@ -236,18 +238,21 @@ def create_leaf_history_fast(fns,run,res_limit=0.0): #, ntimes, time_file):
             fraction_nextleaf = np.zeros(sz_next_leaves)        
 
             # Get center pos for current leaf
+            print("centpost =", centpos_snap)
             pos = centpos_snap[thisleafidx]
+            print("pos =", pos)
 
             for m in range(0,sz_next_leaves):
             
                 nextpos = centpos_nextsnap[m]
                 diffpos = np.sqrt(np.sum((pos - nextpos)**2, axis=0))
-                print("nextsnap pos, nextpos, diff", nextsnap, pos, nextpos, diffpos)
 
-                # If central position between leaves is more than 1 pc continue to next leaf
+                # If central position between leaves is more than 1 pc 
+                # continue to next leaf
                 if diffpos > 1.0:
                     continue
 
+                print("nextsnap pos, nextpos, diff", next_snap, pos, nextpos, diffpos)
                 set = [i for i in ids[leaf.get_mask()] if i in next_leaves_indices[m]]
                 if set:
                     overlap[m] = len(set)
@@ -272,6 +277,8 @@ def create_leaf_history_fast(fns,run,res_limit=0.0): #, ntimes, time_file):
         dendro = next_dendro
         ids = next_ids
         snap = next_snap
+        centpos_snap = centpos_nextsnap
+
         del next_dendro
         del next_ids
         gc.collect()
