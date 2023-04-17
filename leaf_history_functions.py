@@ -35,7 +35,7 @@ def load_star_pos_mass(file):
     return starpos, starmass
 
 
-#create leaf histories
+#create leaf histories, generate all 4 files (slow)
 def create_leaf_history(fns,run,res_limit=0.0): #, ntimes, time_file):
     leaf_histories = []
     tree = []
@@ -180,6 +180,104 @@ def create_leaf_history(fns,run,res_limit=0.0): #, ntimes, time_file):
 
     return leaf_histories, tree, merge_histories, nodes_edges
 
+#create leaf histories (generate nodes_edges file only)
+def create_leaf_history_fast(fns,run,res_limit=0.0): #, ntimes, time_file):
+                
+    nodes_edges = []
+
+    # Load first snapshot
+    snap = fns[0][-8:-5]
+    dendro_file = run+'_snapshot_'+snap+'_min_val1e3_res1e-3.fits' 
+    dendro = Dendrogram.load_from(dendro_file)
+    ids = load_data_ids(fns[0], res_limit=res_limit)
+    print("*** Starting from snapshot ", snap)
+
+    # Load density peak locations
+    corefile = glob.glob(run+'_snapshot_*_'+snap+'_prop_v1.csv')
+    coredata = read_properties(corefile)
+    centpos_snap = coredata['Center Position [pc]'].values
+
+    # Loop through snapshots
+    for j,snapshot in enumerate(fns[:-1]):
+        next_snap = fns[j+1][-8:-5]
+        next_dendro_file = run+'_snapshot_'+next_snap+'_min_val1e3_res1e-3.fits' 
+        next_dendro = Dendrogram.load_from(next_dendro_file)
+        next_ids = load_data_ids(fns[j+1],res_limit=res_limit)
+
+        # Load density peak locations
+        corefile = glob.glob(run+'_snapshot_*'+next_snap+'_prop_v1.csv')
+        coredata = read_properties(corefile)
+        centpos_nextsnap = coredata['Center Position [pc]'].values
+
+        print(" --- ", next_snap)
+        out_nodefile = 'nodes_edges_'+run+'_'+snap+'_'+next_snap+'.csv'
+
+        leaves = dendro.leaves
+            
+        next_leaves = next_dendro.leaves
+        sz_next_leaves = len(next_leaves)
+
+        # Store ids of particles in each leaf
+        next_leaves_indices = np.zeros(shape=(sz_next_leaves,), dtype=np.ndarray)
+        for m,leaf in enumerate(next_leaves):
+            # Get the ids of the particles in this leaf 
+            next_leaves_indices[m] = next_ids[leaf.get_mask()]
+
+        # Get location of current leaf in the leaf_history
+        for thisleafidx, leaf in leaves:
+
+            # Number of cells in common with each leaf in next snapshot
+            overlap = np.zeros(sz_next_leaves) 
+
+            # Fraction of current leaf in common
+            fraction_leaf = np.zeros(sz_next_leaves)
+
+            # Fraction of next leaf in common
+            fraction_nextleaf = np.zeros(sz_next_leaves)        
+
+            # Get center pos for current leaf
+            pos = centpos_snap[thisleafidx]
+
+            for m in range(0,sz_next_leaves):
+            
+                nextpos = centpos_nextsnap[m]
+                diffpos = np.sqrt(np.sum((pos - nextpos)**2, axis=0))
+                print("nextsnap pos, nextpos, diff", nextsnap, pos, nextpos, diffpos)
+
+                # If central position between leaves is more than 1 pc continue to next leaf
+                if diffpos > 1.0:
+                    continue
+
+                set = [i for i in ids[leaf.get_mask()] if i in next_leaves_indices[m]]
+                if set:
+                    overlap[m] = len(set)
+                    fraction_leaf[m] = overlap[m]/len(ids[leaf.get_mask()])
+                    fraction_nextleaf[m] = overlap[m]/len(next_leaves_indices[m])
+            # Match where more than half of cells match for either snapshot
+            match_ind = np.where(np.logical_or(fraction_leaf > 0.5, fraction_nextleaf > 0.5))[0]
+            
+            # Add to end of appropriate row
+            if len(match_ind) > 0:
+                for i in match_ind:
+                    nodes_edges.append([str("%05i"%(int(snap)))+str(leaf.idx), str("%05i"%(int(next_snap)))+str(next_leaves[i].idx)])
+                print('Match found for leaf ', leaf.idx, fraction_leaf[match_ind], fraction_nextleaf[match_ind])
+               
+            else:
+                print('No match found for leaf ', leaf.idx, fraction_leaf[match_ind], fraction_nextleaf[match_ind])
+
+        nodes_edges_df = pd.DataFrame(nodes_edges)
+        nodes_edges_df.to_csv(out_nodefile, index=False, header=False)
+        print("Saved nodes to ", out_nodefile)
+
+        dendro = next_dendro
+        ids = next_ids
+        snap = next_snap
+        del next_dendro
+        del next_ids
+        gc.collect()
+
+    return
+
 
 # Read in the file
 def read_leaf_history(file):
@@ -197,7 +295,7 @@ def plot_leaves(fns, run):
     # Load first snapshot
     for i in range(len(fns)):
         print(".. Plotting ", i)
-        snap = fns[i][-8:-5]
+        snap = fns[i][-8:-5].replace("_","")
         dendro_file = run+'_snapshot_'+snap+'_min_val1e3_res1e-3.fits' 
         dendro = Dendrogram.load_from(dendro_file)
 
