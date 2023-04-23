@@ -182,7 +182,7 @@ def create_leaf_history(fns,run,res_limit=0.0): #, ntimes, time_file):
     return leaf_histories, tree, merge_histories, nodes_edges
 
 #create leaf histories (generate nodes_edges file only)
-def create_leaf_history_fast(fns,run,res_limit=0.0): #, ntimes, time_file):
+def create_leaf_history_fast(fns,run,res_limit=0.0,search_radius=1.0): #, ntimes, time_file):
                 
     nodes_edges = []
 
@@ -249,7 +249,7 @@ def create_leaf_history_fast(fns,run,res_limit=0.0): #, ntimes, time_file):
 
                 # If central position between leaves is more than 1 pc 
                 # continue to next leaf
-                if diffpos > 1.0:
+                if diffpos > search_radius:
                     continue
 
                 print("nextsnap pos, nextpos, diff", next_snap, pos, nextpos, diffpos)
@@ -278,6 +278,7 @@ def create_leaf_history_fast(fns,run,res_limit=0.0): #, ntimes, time_file):
         ids = next_ids
         snap = next_snap
         centpos_snap = centpos_nextsnap
+        nodes_edges = []
 
         del next_dendro
         del next_ids
