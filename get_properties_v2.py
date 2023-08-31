@@ -108,6 +108,13 @@ def load_data(file, res_limit = 0.0):
     t = f['PartType0']['SoundSpeed'][:]*mask
     v = f['PartType0']['Velocities']*mask3d
 
+    m11 = f['PartType0']['Metallicity'][:,11]*mask
+    m12 = f['PartType0']['Metallicity'][:,12]*mask
+    m13 = f['PartType0']['Metallicity'][:,13]*mask
+
+    m_out = m11/(1-m12-m13)  # Outflow mass fraction
+    m_wind = m12/(1-m11-m13) # Wind mass fraction
+
     if 'PartType5' in f.keys():
         partlist = f['PartType5']['Coordinates'][:]
         partmasses = f['PartType5']['Masses'][:]
@@ -130,17 +137,18 @@ def load_data(file, res_limit = 0.0):
     tcgs = time*(unitlen/unitvel)/(3600.0*24.0*365.0*1e6)
     unit_base = {'UnitLength' : unitlen, 'UnitMass': unitmass, 'UnitVel': unitvel, 'UnitB': unitb}
 
-    del f
-    return den, x, m, h, u, b, v, t, fmol, fneu, partlist, partmasses, partvels, partids, tcgs, unit_base
+    del f, m11, m12, m13
+    return den, x, m, h, u, b, v, t, fmol, fneu, m_out, m_wind, partlist, partmasses, partvels, partids, tcgs, unit_base
 
 def calc_nh2(den, fmol, fneu, unit_base, helium_mass_fraction=0.284, mh=1.67e-24):
     ## Calculate n_H2
     return unit_base['UnitMass']/unit_base['UnitLength']**3*den*fmol*fneu*(1-helium_mass_fraction)/(2.0*mh)
     
-def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist, partmasses, partvels, partids, veltol=1730, postol=0.043):
+def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, m_out, m_wind, partlist, partmasses, partvels, partids, veltol=1730, postol=0.043):
     """ dendro - dendrogram
         den, c, m, h, u, b, v - snapshot density, position, masses, smoothing
              length, magnetic field, velocities
+        m_out, m_wind -- outflow mass fraction and wind mass fraction (relative to non-feedback material)
         partlist, partmasses, partvels, partids - star particle coordines, masses, velocities, ids
         veltol -- maximum difference between core bulk velocity and star velocity to save sinks
         postol -- maximum difference between density maximum and star position to count as protostellar
@@ -167,8 +175,13 @@ def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist,
     leaf_sinkallid = [] 
     leaf_protostellar = []
     leaf_id = []  
-    leaf_cs = []      # Mass-wieghted temperature
-    leaf_keonly = []  # COM KE without thermal component
+    leaf_cs = []        # Mass-wieghted temperature
+    leaf_keonly = []    # COM KE without thermal component
+    leaf_mout_med = []  # Feedback fractions
+    leaf_mwind_med = []
+    leaf_mout_mean = []
+    leaf_mwind_mean = []
+
     csconst = 0.188e3 # T=10 K [m/s], currently not used
     kb = 1.38e-23 # mks
     mh = 1.67e-27 # mks
@@ -223,6 +236,11 @@ def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist,
             #leaf_cs.append(csconst) #cg
             leaf_cs.append(cs)             
      
+            leaf_mout_med.append(np.median(m_out[mask]))
+            leaf_mout_mean.append(np.mean(m_out[mask]))
+            leaf_mwind_med.append(np.median(m_wind[mask]))
+            leaf_mwind_mean.append(np.mean(m_wind[mask]))
+
             # Get grav, magnetic info
             #start = time.time()
             leaf_grave.append(PE(x[mask], m[mask], h[mask]))
@@ -265,7 +283,7 @@ def get_leaf_properties(dendro, den, x, m, h, u, b, v, t, snapshot_no, partlist,
             #print(" Complete sink info:", (time.time() - start)/60.)
 
 
-    return leaf_masses, leaf_maxden, leaf_centidx, leaf_centpos, leaf_vdisp, leaf_vbulk, leaf_shape, leaf_halfmass, leaf_reff, leaf_bmean, leaf_mage, leaf_ke, leaf_grave, leaf_sink, leaf_sinkallm, leaf_sinkallid, leaf_protostellar, leaf_id, leaf_cs, leaf_keonly
+    return leaf_masses, leaf_maxden, leaf_centidx, leaf_centpos, leaf_vdisp, leaf_vbulk, leaf_shape, leaf_halfmass, leaf_reff, leaf_bmean, leaf_mage, leaf_ke, leaf_grave, leaf_sink, leaf_sinkallm, leaf_sinkallid, leaf_protostellar, leaf_id, leaf_cs, leaf_keonly, leaf_mout_med, leaf_mout_mean, leaf_mwind_med, leaf_mwind_mean
     
 def load_dendrogram(dendro_file, nh2, x, num):
     """  dendro_file - dendrogram location saved or to save
