@@ -18,12 +18,13 @@ unit_base = {'UnitMagneticField_in_gauss':  1e+4,
 
 
 # Read in Data From Folder of csv files
-vers = 'v7'
+vers = 'v2'
 
-tag = '_M2e3_cores_v7/M2e3_R3_S0-T1_B0.01_Res126_n2_sol0.5_42_snapshot_*_prop_'+vers+'.csv'
-file_save = '_M2e3_cores_v7/M2e3_R3_S0-T1_B0.01_Res126_n2_sol0.5_42_all_prop_'+vers+'.csv'
-time_save = '_M2e3_cores_v7/M2e3_R3_S0-T1_B0.01_Res126_n2_sol0.5_42_times_'+vers+'.csv'
+tag = 'M2e4_R10_S0_T1_B0.01_Res271_n2_sol0.5_42_isrf10_snapshot_*_prop_'+vers+'.csv'
+file_save = 'M2e4_R10_S0_T1_B0.01_Res271_n2_sol0.5_42_isrf10_all_prop_'+vers+'.csv'
+time_save = 'M2e4_R10_S0_T1_B0.01_Res271_n2_sol0.5_42_isrf10_times_'+vers+'.csv'
 save = True  # Whether to save the profiles
+pkl_save =  'M2e4_R10_S0_T1_B0.01_Res271_n2_sol0.5_42_isrf10_all_prop_'+vers+'.pkl'
 
 fns = glob.glob(tag)
 fns = natsorted(fns) #fns.sort() # Need natsort for snapshot > 1000, otherwise do time sort
@@ -60,10 +61,12 @@ if save: # Save all as a new data frame
     save_df = pd.DataFrame(profiles, columns = ['ID','Density [cm^-3]','Dispersion [cm/s]', 'Reff [pc]', 'LeafDisp [cm/s]', 'LeafMass [msun]', 'CoherentRadius [pc]',
                                                 'DensityIndex','V Bulk [cm/s]','Center Position [pc]','Center index','LeafKe', 'LeafGrav', 'Num. Sinks',
                                                 'Max Den [cm^-3]', 'Shape [pc]','Half Mass R[pc]', 'Mean B [G]', 'Mag. Energy', 'Sink Masses [Msun]',
-                                                'Sound speed [cm/s]', 'LeafKe only','Protostellar'])
+                                                'Sound speed [cm/s]', 'LeafKe only','Protostellar','Median Outflow Mass Frac', 'Mean Outflow Mass Frac', 'Median Wind Mass Frac', 'Mean Wind Mass Frac'])
 
     print("Saving cores in ", file_save)
     save_df.to_csv(file_save,index=False)
+    save_df.to_pickle(pkl_save)
+
 
     print("Saving times in ", time_save)
     times = []
@@ -107,6 +110,10 @@ lsinkmass = profiles['Sink Masses [Msun]'].values
 lsound = profiles['Sound speed [cm/s]'].values 
 lproto = profiles['Protostellar'].values 
 lkeonly = profiles['LeafKe only'].values #cgs 
+medoutmassfrac = profiles['Median Outflow Mass Frac'].values
+meanoutmassfrac = profiles['Mean Outflow Mass Frac'].values
+medwindmassfrac = profiles['Median Wind Mass Frac'].values
+meanwindmassfrac = profiles['Mean Wind Mass Frac'].values
 
 nleaves = len(lsound)
 indsink = np.where(lsink > 0)[0]
@@ -169,6 +176,9 @@ print(" Mage/KE  = %5.4f %5.4f %5.4f" %(np.mean(lmage/lke), np.median(lmage/lke)
 print(" Mage/Grave  = %5.4f %5.4f %5.4f" %(np.mean(lmage/lgrave), np.median(lmage/lgrave), np.std(lmage/lgrave))) 
 print(" KE/Grave  = %5.4f %5.4f %5.4f" %(np.mean(lke/lgrave), np.median(lke/lgrave), np.std(lke/lgrave))) 
 print(" KEonly/Grave  = %5.4f %5.4f %5.4f" %(np.mean(lkeonly/lgrave), np.median(lkeonly/lgrave), np.std(lkeonly/lgrave)))
+print(" Outflow Mass Fract  = %5.4f %5.4f %5.4f" %(np.mean(medoutmassfrac), np.median(medoutmassfrac), np.std(medoutmassfrac)))
+print(" Wind Mass Fract  = %5.3e %5.3e %5.e" %(np.mean(medwindmassfrac), np.median(medwindmassfrac), np.std(medwindmassfrac)))
+
 print(" SinkFrac = %5.3f" %sinkfrac)
 
 
@@ -312,6 +322,24 @@ ax.set_xlabel('Density exponent: p')
 ax.set_ylabel('N')
 plt.legend()
 fig.savefig('Rhopow_'+vers+'.png')
+
+fig, ax = plt.subplots()
+medoutmassfractmp = medoutmassfrac
+tmp = np.where(medoutmassfrac == 0)[0]
+medoutmassfractmp[tmp] = 1.0
+medwindmassfractmp = medwindmassfrac
+tmp = np.where(medwindmassfrac == 0)[0]
+medwindmassfractmp[tmp] = 1.0
+
+n, bins, patches = ax.hist(np.log10(medoutmassfractmp[indnosink]), 30, stacked=True, label='Starless Outflow')
+n, bins, patches = ax.hist(np.log10(medoutmassfractmp[indsink]), 30, stacked=True, color='purple', label='Protostellar Outflow')
+n, bins, patches = ax.hist(np.log10(medwindmassfractmp[indnosink]), 30, stacked=True, label='Starless Wind', color='grey')
+n, bins, patches = ax.hist(np.log10(medwindmassfractmp[indsink]), 30, stacked=True, color='green', label='Protostellar Wind')
+ax.set_xlabel('Log Feedback Mass Fraction')
+ax.set_ylabel('N')
+plt.legend()
+fig.savefig('Feedback_'+vers+'.png')
+
 
 coeff, cov = np.polyfit(np.log10(lradius), np.log10(lmass), 1, cov='True')
 print("Starless: slope, offset:", coeff, np.sqrt(np.diag(cov)))

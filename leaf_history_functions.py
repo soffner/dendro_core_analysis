@@ -182,10 +182,8 @@ def create_leaf_history(fns,run,res_limit=0.0): #, ntimes, time_file):
     return leaf_histories, tree, merge_histories, nodes_edges
 
 #create leaf histories (generate nodes_edges file only)
-def create_leaf_history_fast(fns,run,res_limit=0.0,search_radius=1.0): #, ntimes, time_file):
-                
-    nodes_edges = []
-
+def create_leaf_history_fast(fns,run,res_limit=0.0, search_radius=1.0): #, ntimes, time_file):
+        
     # Load first snapshot
     snap = fns[0][-8:-5]
     dendro_file = run+'_snapshot_'+snap+'_min_val1e3_res1e-3.fits' 
@@ -194,20 +192,21 @@ def create_leaf_history_fast(fns,run,res_limit=0.0,search_radius=1.0): #, ntimes
     print("*** Starting from snapshot ", snap)
 
     # Load density peak locations
-    corefile = glob.glob(run+'_snapshot_*_'+snap+'_prop_v1.csv')
+    corefile = glob.glob(run+'_snapshot_*_'+snap+'_prop_v2.csv')
     coredata = read_properties(corefile)
     centpos_snap = coredata['Center Position [pc]'].values
     print("centpos =", centpos_snap)
 
     # Loop through snapshots
     for j,snapshot in enumerate(fns[:-1]):
+        nodes_edges = []
         next_snap = fns[j+1][-8:-5]
         next_dendro_file = run+'_snapshot_'+next_snap+'_min_val1e3_res1e-3.fits' 
         next_dendro = Dendrogram.load_from(next_dendro_file)
         next_ids = load_data_ids(fns[j+1],res_limit=res_limit)
 
         # Load density peak locations
-        corefile_next = glob.glob(run+'_snapshot_*'+next_snap+'_prop_v1.csv')
+        corefile_next = glob.glob(run+'_snapshot_*'+next_snap+'_prop_v2.csv')
         coredata_next = read_properties(corefile_next)
         centpos_nextsnap = coredata_next['Center Position [pc]'].values
 
@@ -278,7 +277,6 @@ def create_leaf_history_fast(fns,run,res_limit=0.0,search_radius=1.0): #, ntimes
         ids = next_ids
         snap = next_snap
         centpos_snap = centpos_nextsnap
-        nodes_edges = []
 
         del next_dendro
         del next_ids
