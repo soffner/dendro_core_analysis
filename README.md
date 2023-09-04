@@ -44,5 +44,13 @@ On one core:
 
 In parallel:
 
+Files are included to conduct the analysis on parallel -- one processsor per snapshot (see _submission_scripts folder). These files are:
+* *submit_core_analysis_par.sh* This file calls *commands_core*, which contains a list of calls to analyze_core_props*py, each file calls a different list of snapshots (you have to set these up).
+* *submit_leaf_history_analysis_par.sh*. This file calls *commands_nodes*,  which contains a list of calls to make_leaf_*py, each file calls a different list of snapshots (you have to set these up).
 
+**Other Files**
+
+*concat_leaf_prop.py* and *concat_node_files.py* will read in the list of core and node files, concatenate them and store them in one csv file and/or pickle them into one smaller file. The former will also output some basic core summary statistics.
+
+*Read_Plot_Core_Props.ipynb* will read in the summary files and make some basic plots. (Has not been updated recently).
 
