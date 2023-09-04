@@ -20,7 +20,7 @@ export LAUNCHER_PLUGIN_DIR=$LAUNCHER_DIR/plugins
 
 #                         # JOB_FILE is a list of executions to run
 
-export LAUNCHER_JOB_FILE=`pwd`/commands
+export LAUNCHER_JOB_FILE=`pwd`/commands_core
 export LAUNCHER_SCHED=interleaved
 export LAUNCHER_WORKDIR=`pwd`
 
