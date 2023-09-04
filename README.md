@@ -27,10 +27,22 @@ _________________
  Usage
 -----------------
 
-Parameters:
+**Parameters**:
 * Set file location, name, output directory set of snapshots in *analyze_core_props_v2.py, make_leaf_history_fast.py*
 * Set mass resolution limit, *res_limit*, in code units -- minimum particle mass to consider -- in *analyze_core_props_v2.py, make_leaf_history_fast.py*
   This excludes feedback gas with cells mass below this limit from the core identification. Make sure dendrogram output/input filename is consistent.
 * Set the number of bins (*nbin*) and core radius (*maxsize*) used to compute the profiles in *analyze_core_props_v2.py*
 * Set *search_radius* for parent/child linkage in call to *create_leaf_history_fast* (default 1.0 code units). Limit speeds up search by excluding distant cores.
-  
+
+**To Run**:
+
+On one core:
+
+*python analyze_core_props_v2.py*
+
+*python make_leaf_history_fast.py*
+
+In parallel:
+
+
+
