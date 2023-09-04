@@ -54,3 +54,4 @@ Files are included to conduct the analysis on parallel -- one processsor per sna
 
 *Read_Plot_Core_Props.ipynb* will read in the summary files and make some basic plots. (Has not been updated recently).
 
+The plot_*.py files are intended for inspection of the leaf properties and appearance over time -- are out of date.
